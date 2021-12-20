@@ -81,7 +81,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_expression_test() {
+    fn parse_primary_expression_test() {
         use crate::syntax::*;
         assert_eq!(
             parse_expression("x"),
@@ -91,6 +91,26 @@ mod tests {
             parse_expression("123"),
             Ok(("", Expr::Literal(Literal::Integer(123))))
         );
+        assert_eq!(
+            parse_expression("true"),
+            Ok(("", Expr::Literal(Literal::Boolean(true))))
+        );
+        assert_eq!(
+            parse_expression("True"),
+            Ok(("", Expr::Literal(Literal::Boolean(true))))
+        );
+        assert_eq!(
+            parse_expression("false"),
+            Ok(("", Expr::Literal(Literal::Boolean(false))))
+        );
+        assert_eq!(
+            parse_expression("False"),
+            Ok(("", Expr::Literal(Literal::Boolean(false))))
+        );
+    }
+
+    #[test]
+    fn parse_application_test() {
         assert_eq!(
             parse_expression("f x"),
             Ok((
@@ -102,6 +122,24 @@ mod tests {
                 }
             ))
         );
+        assert_eq!(
+            parse_expression("(\\ x -> x) y"),
+            Ok((
+                "",
+                Expr::Binary {
+                    op: BinaryOperation::Application,
+                    lhs: Box::new(Expr::Lambda {
+                        parameter: "x".to_string(),
+                        body: Box::new(Expr::Identifier("x".to_string()))
+                    }),
+                    rhs: Box::new(Expr::Identifier("y".to_string())),
+                }
+            ))
+        );
+    }
+
+    #[test]
+    fn parse_lambda_test() {
         assert_eq!(
             parse_expression("\\ x -> x"),
             Ok((
@@ -122,20 +160,6 @@ mod tests {
                         parameter: "y".to_string(),
                         body: Box::new(Expr::Identifier("x".to_string()))
                     })
-                }
-            ))
-        );
-        assert_eq!(
-            parse_expression("(\\ x -> x) y"),
-            Ok((
-                "",
-                Expr::Binary {
-                    op: BinaryOperation::Application,
-                    lhs: Box::new(Expr::Lambda {
-                        parameter: "x".to_string(),
-                        body: Box::new(Expr::Identifier("x".to_string()))
-                    }),
-                    rhs: Box::new(Expr::Identifier("y".to_string())),
                 }
             ))
         );
