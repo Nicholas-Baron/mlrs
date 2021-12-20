@@ -65,7 +65,7 @@ fn parse_primary_expr(input: &str) -> IResult<&str, Expr> {
         combinator::map_res(digit1, |value: &str| {
             value.parse().map(|x| Expr::Literal(Literal::Integer(x)))
         }),
-        combinator::map(parse_identifier, |id| Expr::Identifier(id)),
+        combinator::map(parse_identifier, Expr::Identifier),
     ))(input)
 }
 
