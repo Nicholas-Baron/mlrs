@@ -1,6 +1,11 @@
 use super::syntax::*;
 
-use nom::{branch, character::complete, combinator, sequence, IResult};
+use nom::{
+    branch,
+    bytes::complete::tag,
+    character::complete::{self, char, space0, space1},
+    combinator, sequence, IResult,
+};
 
 fn parse_identifier(input: &str) -> IResult<&str, String> {
     use complete::{alpha1, alphanumeric0};
@@ -14,8 +19,6 @@ pub fn parse_expression(input: &str) -> IResult<&str, Expr> {
 }
 
 fn parse_lambda(input: &str) -> IResult<&str, Expr> {
-    use complete::{char, space0};
-    use nom::bytes::complete::tag;
     branch::alt((
         parse_application,
         combinator::map(
@@ -37,8 +40,6 @@ fn parse_lambda(input: &str) -> IResult<&str, Expr> {
 }
 
 fn parse_application(input: &str) -> IResult<&str, Expr> {
-    use complete::space1;
-
     let (input, expr) = parse_primary_expr(input)?;
     let (input, opt_param) =
         combinator::opt(sequence::preceded(space1, parse_primary_expr))(input)?;
@@ -58,7 +59,7 @@ fn parse_application(input: &str) -> IResult<&str, Expr> {
 }
 
 fn parse_primary_expr(input: &str) -> IResult<&str, Expr> {
-    use complete::{char, digit1, space0};
+    use complete::digit1;
     let (input, _) = space0(input)?;
     branch::alt((
         sequence::delimited(char('('), parse_expression, char(')')),
@@ -73,7 +74,6 @@ fn parse_primary_expr(input: &str) -> IResult<&str, Expr> {
 }
 
 fn parse_boolean_literal(input: &str) -> IResult<&str, bool> {
-    use nom::bytes::complete::tag;
     combinator::map_res(
         branch::alt((tag("true"), tag("True"), tag("false"), tag("False"))),
         |value: &str| value.to_lowercase().parse(),
@@ -93,7 +93,6 @@ mod tests {
 
     #[test]
     fn parse_primary_expression_test() {
-        use crate::syntax::*;
         assert_eq!(
             parse_expression("x"),
             Ok(("", Expr::Identifier("x".to_string())))
