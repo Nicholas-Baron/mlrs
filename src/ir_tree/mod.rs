@@ -54,12 +54,10 @@ impl Module {
 
     /// Walk the name scopes in reverse order to find the `IRId` for a particular identifier.
     fn find_identifier(&self, identifier: &Identifier) -> Option<&IRId> {
-        for scope in self.name_scope.iter().rev() {
-            if let Some(id) = scope.get(identifier) {
-                return Some(id);
-            }
-        }
-        None
+        self.name_scope
+            .iter()
+            .rev()
+            .find_map(|scope| scope.get(identifier))
     }
 
     fn add_expr(&mut self, expr: &syntax::Expr) -> IRId {
@@ -106,3 +104,5 @@ impl Module {
         id
     }
 }
+
+// TODO: Add tests
