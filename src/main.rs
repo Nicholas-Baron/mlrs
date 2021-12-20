@@ -1,5 +1,6 @@
 use std::io;
 
+mod ir_tree;
 mod parser;
 mod syntax;
 
@@ -13,10 +14,20 @@ fn main() {
         }
 
         println!("{}", line);
-        match parser::parse_expression(&line) {
-            Ok((remaining, expr)) => println!("{:?} (remaining: {})", expr, remaining),
-            Err(e) => eprintln!("{}", e),
-        }
-        line.clear();
+        let expr = match parser::parse_expression(&line) {
+            Ok((remaining, expr)) => {
+                println!("{:?} (remaining: {:?})", expr, remaining);
+                line.clear();
+                expr
+            }
+            Err(e) => {
+                eprintln!("{}", e);
+                line.clear();
+                continue;
+            }
+        };
+
+        let ir_mod = ir_tree::Module::from_expr(&expr);
+        println!("{:?}", ir_mod);
     }
 }

@@ -16,12 +16,13 @@ pub enum Expr {
     },
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub enum BinaryOperation {
     Application,
 }
 
-#[derive(PartialEq, Debug)]
+// TODO: Fold this into `Expr`?
+#[derive(PartialEq, Debug, Clone)]
 pub enum Literal {
     Boolean(bool),
     Integer(i64),
