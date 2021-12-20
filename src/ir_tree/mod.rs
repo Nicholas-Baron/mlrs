@@ -11,7 +11,7 @@ impl IRId {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum IRItem {
     Literal(Literal),
     Identifier(Identifier),
@@ -80,6 +80,8 @@ impl Module {
                         let param_id = self.next_ir_id();
                         let name_scope = self.add_new_name_scope();
                         name_scope.insert(parameter.clone(), param_id.clone());
+                        self.ir_items
+                            .insert(param_id.clone(), IRItem::Identifier(parameter.clone()));
                         param_id
                     },
                     body: self.add_expr(body),
@@ -105,4 +107,40 @@ impl Module {
     }
 }
 
-// TODO: Add tests
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn lowers_lambda() {
+        let lambda = syntax::Expr::Lambda {
+            parameter: "x".to_string(),
+            body: Box::new(syntax::Expr::Lambda {
+                parameter: "y".to_string(),
+                body: Box::new(syntax::Expr::Identifier("x".to_string())),
+            }),
+        };
+
+        let module = Module::from_expr(&lambda);
+        assert_eq!(module.name_scope.len(), 2);
+        assert_ne!(module.root_id, None);
+
+        let x_id = module.find_identifier(&"x".to_string());
+        assert_ne!(x_id, None);
+        let y_id = module.find_identifier(&"y".to_string());
+        assert_ne!(y_id, None);
+        let z_id = module.find_identifier(&"z".to_string());
+        assert_eq!(z_id, None);
+
+        println!("{:?}", module);
+
+        assert_eq!(
+            module.ir_items.get(x_id.unwrap()),
+            Some(&IRItem::Identifier("x".to_string()))
+        );
+        assert_eq!(
+            module.ir_items.get(y_id.unwrap()),
+            Some(&IRItem::Identifier("y".to_string()))
+        );
+    }
+}
