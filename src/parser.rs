@@ -65,8 +65,19 @@ fn parse_primary_expr(input: &str) -> IResult<&str, Expr> {
         combinator::map_res(digit1, |value: &str| {
             value.parse().map(|x| Expr::Literal(Literal::Integer(x)))
         }),
+        combinator::map(parse_boolean_literal, |x| {
+            Expr::Literal(Literal::Boolean(x))
+        }),
         combinator::map(parse_identifier, Expr::Identifier),
     ))(input)
+}
+
+fn parse_boolean_literal(input: &str) -> IResult<&str, bool> {
+    use nom::bytes::complete::tag;
+    combinator::map_res(
+        branch::alt((tag("true"), tag("True"), tag("false"), tag("False"))),
+        |value: &str| value.to_lowercase().parse(),
+    )(input)
 }
 
 #[cfg(test)]
