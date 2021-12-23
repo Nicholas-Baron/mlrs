@@ -19,6 +19,7 @@ pub enum Expr {
 #[derive(PartialEq, Debug, Clone)]
 pub enum BinaryOperation {
     Application,
+    Plus,
 }
 
 // TODO: Fold this into `Expr`?

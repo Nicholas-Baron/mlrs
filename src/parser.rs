@@ -20,7 +20,7 @@ pub fn parse_expression(input: &str) -> IResult<&str, Expr> {
 
 fn parse_lambda(input: &str) -> IResult<&str, Expr> {
     branch::alt((
-        parse_application,
+        parse_addition,
         combinator::map(
             sequence::tuple((
                 space0,
@@ -37,6 +37,31 @@ fn parse_lambda(input: &str) -> IResult<&str, Expr> {
             },
         ),
     ))(input)
+}
+
+fn parse_addition(input: &str) -> IResult<&str, Expr> {
+    let (input, expr) = parse_application(input)?;
+    let (input, opt_rhs) = combinator::opt(sequence::preceded(
+        space0,
+        sequence::tuple((
+            combinator::map(char('+'), |_| BinaryOperation::Plus),
+            space0,
+            parse_application,
+        )),
+    ))(input)?;
+
+    Ok((
+        input,
+        if let Some((op, _, rhs)) = opt_rhs {
+            Expr::Binary {
+                lhs: Box::new(expr),
+                rhs: Box::new(rhs),
+                op,
+            }
+        } else {
+            expr
+        },
+    ))
 }
 
 fn parse_application(input: &str) -> IResult<&str, Expr> {
@@ -170,6 +195,36 @@ mod tests {
                         parameter: "y".to_string(),
                         body: Box::new(Expr::Identifier("x".to_string()))
                     })
+                }
+            ))
+        );
+    }
+
+    #[test]
+    fn parse_addition_test() {
+        assert_eq!(
+            parse_expression("x + y"),
+            Ok((
+                "",
+                Expr::Binary {
+                    op: BinaryOperation::Plus,
+                    lhs: Box::new(Expr::Identifier("x".to_string())),
+                    rhs: Box::new(Expr::Identifier("y".to_string())),
+                }
+            ))
+        );
+        assert_eq!(
+            parse_expression("f x + y"),
+            Ok((
+                "",
+                Expr::Binary {
+                    op: BinaryOperation::Plus,
+                    lhs: Box::new(Expr::Binary {
+                        lhs: Box::new(Expr::Identifier("f".to_string())),
+                        rhs: Box::new(Expr::Identifier("x".to_string())),
+                        op: BinaryOperation::Application,
+                    }),
+                    rhs: Box::new(Expr::Identifier("y".to_string())),
                 }
             ))
         );
