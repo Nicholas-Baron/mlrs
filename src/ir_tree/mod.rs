@@ -3,7 +3,7 @@ use crate::syntax::{self, BinaryOperation, Identifier, Literal};
 use std::collections::HashMap;
 
 #[derive(Default, Debug, Clone, PartialEq, Eq, Hash)]
-struct IRId(u32);
+pub struct IRId(u32);
 
 impl IRId {
     fn inc(&mut self) {
@@ -11,8 +11,8 @@ impl IRId {
     }
 }
 
-#[derive(Debug, PartialEq)]
-enum IRItem {
+#[derive(Debug, PartialEq, Clone)]
+pub enum IRItem {
     Literal(Literal),
     Identifier(Identifier),
     Lambda {
@@ -58,6 +58,14 @@ impl Module {
             .iter()
             .rev()
             .find_map(|scope| scope.get(identifier))
+    }
+
+    pub fn root_id(&self) -> Option<&IRId> {
+        self.root_id.as_ref()
+    }
+
+    pub fn get_item(&self, id: &IRId) -> Option<&IRItem> {
+        self.ir_items.get(id)
     }
 
     fn add_expr(&mut self, expr: &syntax::Expr) -> IRId {
