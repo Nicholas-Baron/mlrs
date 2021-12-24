@@ -4,7 +4,7 @@ use nom::{
     branch,
     bytes::complete::tag,
     character::complete::{self, char, space0, space1},
-    combinator, sequence, IResult,
+    combinator, multi, sequence, IResult,
 };
 
 fn parse_identifier(input: &str) -> IResult<&str, String> {
@@ -65,22 +65,19 @@ fn parse_addition(input: &str) -> IResult<&str, Expr> {
 }
 
 fn parse_application(input: &str) -> IResult<&str, Expr> {
-    let (input, expr) = parse_primary_expr(input)?;
-    let (input, opt_param) =
-        combinator::opt(sequence::preceded(space1, parse_primary_expr))(input)?;
-
-    Ok((
-        input,
-        if let Some(param) = opt_param {
-            Expr::Binary {
-                lhs: Box::new(expr),
-                rhs: Box::new(param),
-                op: BinaryOperation::Application,
-            }
-        } else {
-            expr
+    combinator::map(
+        multi::separated_list1(space1, parse_primary_expr),
+        |exprs| {
+            exprs
+                .into_iter()
+                .reduce(|lhs, rhs| Expr::Binary {
+                    op: BinaryOperation::Application,
+                    lhs: Box::new(lhs),
+                    rhs: Box::new(rhs),
+                })
+                .expect("separated_list1 should always give at least 1 item")
         },
-    ))
+    )(input)
 }
 
 fn parse_primary_expr(input: &str) -> IResult<&str, Expr> {
@@ -154,6 +151,21 @@ mod tests {
                     lhs: Box::new(Expr::Identifier("f".to_string())),
                     rhs: Box::new(Expr::Identifier("x".to_string())),
                     op: BinaryOperation::Application
+                }
+            ))
+        );
+        assert_eq!(
+            parse_expression("f x y"),
+            Ok((
+                "",
+                Expr::Binary {
+                    lhs: Box::new(Expr::Binary {
+                        lhs: Box::new(Expr::Identifier("f".to_string())),
+                        rhs: Box::new(Expr::Identifier("x".to_string())),
+                        op: BinaryOperation::Application
+                    }),
+                    op: BinaryOperation::Application,
+                    rhs: Box::new(Expr::Identifier("y".to_string()))
                 }
             ))
         );
