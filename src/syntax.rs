@@ -5,6 +5,15 @@ pub type Identifier = String;
 pub enum Expr {
     Literal(Literal),
     Identifier(Identifier),
+    /// This denotes a binding of some expression to a name.
+    /// ```
+    /// x = 5
+    /// f = \x -> \y -> x + y
+    /// ```
+    Binding {
+        name: Identifier,
+        expr: Box<Expr>,
+    },
     Lambda {
         parameter: Identifier,
         body: Box<Expr>,

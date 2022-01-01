@@ -79,6 +79,20 @@ impl Module {
                     None => panic!("Could not find identifier '{}' in module {:?}", ident, self),
                 }
             }
+            Expr::Binding { name, expr } => {
+                let ir_id = self.add_expr(expr);
+                self.name_scope
+                    .last_mut()
+                    .map(|scope| scope.insert(name.clone(), ir_id.clone()))
+                    .flatten()
+                    .map(|old_id| {
+                        eprintln!("Identifier {} was bound to {:?}, but is now bound to {:?} in the same name scope",
+                            name,old_id,ir_id
+                            );
+                        eprintln!("{:?}",self);
+                    });
+                return ir_id;
+            }
             Expr::Lambda { body, parameter } => (
                 self.next_ir_id(),
                 // NOTE: The initalization order here matters.
@@ -149,6 +163,41 @@ mod tests {
         assert_eq!(
             module.ir_items.get(y_id.unwrap()),
             Some(&IRItem::Identifier("y".to_string()))
+        );
+    }
+
+    #[test]
+    fn lowers_binding() {
+        let lambda = syntax::Expr::Binding {
+            name: "f".to_string(),
+            expr: Box::new(syntax::Expr::Lambda {
+                parameter: "x".to_string(),
+                body: Box::new(syntax::Expr::Identifier("x".to_string())),
+            }),
+        };
+
+        let module = Module::from_expr(&lambda);
+        assert_eq!(module.name_scope.len(), 1);
+        assert_ne!(module.root_id, None);
+
+        let f_id = module.find_identifier(&"f".to_string());
+        assert_ne!(f_id, None);
+        let x_id = module.find_identifier(&"x".to_string());
+        assert_ne!(x_id, None);
+        let x_id = x_id.unwrap();
+
+        println!("{:?}", module);
+
+        assert_eq!(
+            module.ir_items.get(f_id.unwrap()),
+            Some(&IRItem::Lambda {
+                parameter: x_id.clone(),
+                body: x_id.clone()
+            })
+        );
+        assert_eq!(
+            module.ir_items.get(x_id),
+            Some(&IRItem::Identifier("x".to_string()))
         );
     }
 }
