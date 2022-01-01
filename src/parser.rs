@@ -15,7 +15,23 @@ fn parse_identifier(input: &str) -> IResult<&str, String> {
 }
 
 pub fn parse_expression(input: &str) -> IResult<&str, Expr> {
-    parse_lambda(input)
+    branch::alt((
+        combinator::map(
+            sequence::tuple((
+                space0,
+                parse_identifier,
+                space0,
+                char('='),
+                space0,
+                parse_lambda,
+            )),
+            |(_, name, _, _eq, _, expr)| Expr::Binding {
+                name,
+                expr: Box::new(expr),
+            },
+        ),
+        parse_lambda,
+    ))(input)
 }
 
 fn parse_lambda(input: &str) -> IResult<&str, Expr> {
@@ -237,6 +253,20 @@ mod tests {
                         op: BinaryOperation::Application,
                     }),
                     rhs: Box::new(Expr::Identifier("y".to_string())),
+                }
+            ))
+        );
+    }
+
+    #[test]
+    fn parse_binding_test() {
+        assert_eq!(
+            parse_expression("x = 5"),
+            Ok((
+                "",
+                Expr::Binding {
+                    name: "x".to_string(),
+                    expr: Box::new(Expr::Literal(Literal::Integer(5)))
                 }
             ))
         );
