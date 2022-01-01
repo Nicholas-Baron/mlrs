@@ -8,6 +8,7 @@ mod syntax;
 fn main() {
     let stdin = io::stdin();
     let mut line = Default::default();
+    let mut exec_context = execute::ExecContext::new();
 
     while let Ok(byte_count) = stdin.read_line(&mut line) {
         if byte_count == 0 {
@@ -31,8 +32,7 @@ fn main() {
         let ir_mod = ir_tree::Module::from_expr(&expr);
         println!("{:?}", ir_mod);
 
-        let mut exec_context = execute::ExecContext::new(ir_mod);
-        let result = exec_context.execute();
+        let result = exec_context.execute(&ir_mod);
         println!("{:?}", result);
     }
 }
@@ -56,8 +56,8 @@ mod test {
         let ir_mod = ir_tree::Module::from_expr(&expr);
         println!("{:?}", ir_mod);
 
-        let mut exec_context = execute::ExecContext::new(ir_mod);
-        let result = exec_context.execute();
+        let mut exec_context = execute::ExecContext::new();
+        let result = exec_context.execute(&ir_mod);
         println!("{:?}", result);
         assert_eq!(result, Literal::Integer(15));
     }
