@@ -8,6 +8,8 @@ mod syntax;
 fn main() {
     let stdin = io::stdin();
     let mut line = Default::default();
+
+    let mut ir_mod = ir_tree::Module::new();
     let mut exec_context = execute::ExecContext::new();
 
     while let Ok(byte_count) = stdin.read_line(&mut line) {
@@ -29,7 +31,8 @@ fn main() {
             }
         };
 
-        let ir_mod = ir_tree::Module::from_expr(&expr);
+        let new_root = ir_mod.add_expr(&expr);
+        ir_mod.set_root(new_root);
         println!("{:?}", ir_mod);
 
         let result = exec_context.execute(&ir_mod);

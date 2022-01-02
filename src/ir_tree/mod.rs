@@ -52,6 +52,15 @@ impl Module {
         self.name_scope.last_mut().unwrap()
     }
 
+    /// Gets the current name scope. If none exists, then one will be created.
+    fn current_name_scope(&mut self) -> &mut HashMap<Identifier, IRId> {
+        if self.name_scope.is_empty() {
+            self.add_new_name_scope()
+        } else {
+            self.name_scope.last_mut().unwrap()
+        }
+    }
+
     /// Walk the name scopes in reverse order to find the `IRId` for a particular identifier.
     fn find_identifier(&self, identifier: &Identifier) -> Option<&IRId> {
         self.name_scope
@@ -68,7 +77,11 @@ impl Module {
         self.ir_items.get(id)
     }
 
-    fn add_expr(&mut self, expr: &syntax::Expr) -> IRId {
+    pub fn set_root(&mut self, id: IRId) {
+        self.root_id = Some(id)
+    }
+
+    pub fn add_expr(&mut self, expr: &syntax::Expr) -> IRId {
         use syntax::Expr;
 
         let (expr_id, ir_expr) = match &*expr {
@@ -81,16 +94,13 @@ impl Module {
             }
             Expr::Binding { name, expr } => {
                 let ir_id = self.add_expr(expr);
-                self.name_scope
-                    .last_mut()
-                    .map(|scope| scope.insert(name.clone(), ir_id.clone()))
-                    .flatten()
-                    .map(|old_id| {
-                        eprintln!("Identifier {} was bound to {:?}, but is now bound to {:?} in the same name scope",
+                let scope = self.current_name_scope();
+                if let Some(old_id) = scope.insert(name.clone(), ir_id.clone()) {
+                    eprintln!("Identifier {} was bound to {:?}, but is now bound to {:?} in the same name scope",
                             name,old_id,ir_id
                             );
-                        eprintln!("{:?}",self);
-                    });
+                    eprintln!("{:?}", self);
+                }
                 return ir_id;
             }
             Expr::Lambda { body, parameter } => (
@@ -199,5 +209,38 @@ mod tests {
             module.ir_items.get(x_id),
             Some(&IRItem::Identifier("x".to_string()))
         );
+    }
+
+    #[test]
+    fn lowers_multiple() {
+        let x_bind = syntax::Expr::Binding {
+            name: "x".to_string(),
+            expr: Box::new(syntax::Expr::Literal(Literal::Integer(5))),
+        };
+
+        let mut module = Module::from_expr(&x_bind);
+        assert_eq!(module.name_scope.len(), 1);
+        assert_ne!(module.root_id, None);
+
+        let f_id = module.find_identifier(&"f".to_string());
+        assert_eq!(f_id, None);
+        let x_id = module.find_identifier(&"x".to_string());
+        assert_ne!(x_id, None);
+        let x_id = x_id.cloned().unwrap();
+
+        println!("{:?}", module);
+
+        let sum_id = module.add_expr(&syntax::Expr::Binary {
+            op: BinaryOperation::Plus,
+            lhs: Box::new(syntax::Expr::Identifier("x".to_string())),
+            rhs: Box::new(syntax::Expr::Literal(Literal::Integer(10))),
+        });
+
+        let sum_ir = module.get_item(&sum_id).cloned().unwrap();
+        if let IRItem::Binary { lhs, .. } = sum_ir {
+            assert_eq!(lhs, x_id);
+        } else {
+            panic!();
+        }
     }
 }
