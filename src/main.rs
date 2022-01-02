@@ -1,11 +1,22 @@
 use std::io;
 
+use structopt::StructOpt;
+
 mod execute;
 mod ir_tree;
 mod parser;
 mod syntax;
 
+#[derive(StructOpt)]
+#[structopt(name = "mlrs", about = "A small ML-like langauge written in Rust")]
+struct Options {
+    #[structopt(short, long)]
+    debug: bool,
+}
+
 fn main() {
+    let opts = Options::from_args();
+
     let stdin = io::stdin();
     let mut line = Default::default();
 
@@ -17,10 +28,11 @@ fn main() {
             break;
         }
 
-        println!("{}", line);
         let expr = match parser::parse_expression(&line) {
             Ok((remaining, expr)) => {
-                println!("{:?} (remaining: {:?})", expr, remaining);
+                if opts.debug {
+                    println!("{:?} (remaining: {:?})", expr, remaining);
+                }
                 line.clear();
                 expr
             }
@@ -33,10 +45,15 @@ fn main() {
 
         let new_root = ir_mod.add_expr(&expr);
         ir_mod.set_root(new_root);
-        println!("{:?}", ir_mod);
 
         let result = exec_context.execute(&ir_mod);
-        println!("{:?}", result);
+
+        if opts.debug {
+            println!("{:?}", ir_mod);
+            println!("{:?}", result);
+        } else {
+            println!("{}", result);
+        }
     }
 }
 
