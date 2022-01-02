@@ -56,28 +56,22 @@ fn parse_lambda(input: &str) -> IResult<&str, Expr> {
 }
 
 fn parse_addition(input: &str) -> IResult<&str, Expr> {
-    let (input, expr) = parse_application(input)?;
-    let (input, opt_rhs) = combinator::opt(sequence::preceded(
-        space0,
-        sequence::tuple((
-            combinator::map(char('+'), |_| BinaryOperation::Plus),
-            space0,
+    combinator::map(
+        multi::separated_list1(
+            sequence::delimited(space0, char('+'), space0),
             parse_application,
-        )),
-    ))(input)?;
-
-    Ok((
-        input,
-        if let Some((op, _, rhs)) = opt_rhs {
-            Expr::Binary {
-                lhs: Box::new(expr),
-                rhs: Box::new(rhs),
-                op,
-            }
-        } else {
-            expr
+        ),
+        |exprs| {
+            exprs
+                .into_iter()
+                .reduce(|lhs, rhs| Expr::Binary {
+                    op: BinaryOperation::Plus,
+                    lhs: Box::new(lhs),
+                    rhs: Box::new(rhs),
+                })
+                .expect("separated_list1 should always give at least 1 item")
         },
-    ))
+    )(input)
 }
 
 fn parse_application(input: &str) -> IResult<&str, Expr> {
@@ -238,6 +232,21 @@ mod tests {
                     op: BinaryOperation::Plus,
                     lhs: Box::new(Expr::Identifier("x".to_string())),
                     rhs: Box::new(Expr::Identifier("y".to_string())),
+                }
+            ))
+        );
+        assert_eq!(
+            parse_expression("x + y + z"),
+            Ok((
+                "",
+                Expr::Binary {
+                    op: BinaryOperation::Plus,
+                    lhs: Box::new(Expr::Binary {
+                        op: BinaryOperation::Plus,
+                        lhs: Box::new(Expr::Identifier("x".to_string())),
+                        rhs: Box::new(Expr::Identifier("y".to_string())),
+                    }),
+                    rhs: Box::new(Expr::Identifier("z".to_string())),
                 }
             ))
         );
