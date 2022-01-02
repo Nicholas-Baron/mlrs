@@ -39,10 +39,8 @@ impl ExecContext {
     fn execute_id(&mut self, module: &Module, id: &IRId) {
         let ir_item = module.get_item(id).cloned();
         match ir_item.unwrap() {
-            IRItem::Literal(l) => self.evaluation_stack.push(ExecValue::Literal(l.clone())),
-            IRItem::Identifier(id) => self
-                .evaluation_stack
-                .push(ExecValue::Identifier(id.clone())),
+            IRItem::Literal(l) => self.evaluation_stack.push(ExecValue::Literal(l)),
+            IRItem::Identifier(id) => self.evaluation_stack.push(ExecValue::Identifier(id)),
             IRItem::Binary { lhs, rhs, op } => match op {
                 BinaryOperation::Plus => {
                     self.execute_id(module, &lhs);
@@ -82,7 +80,7 @@ impl ExecContext {
                 Literal::Integer(val) => *val,
                 Literal::Boolean(_) => panic!(),
             },
-            ExecValue::Identifier(id) => self.unpack_exec(self.find_value(&id).unwrap()),
+            ExecValue::Identifier(id) => self.unpack_exec(self.find_value(id).unwrap()),
         }
     }
 
