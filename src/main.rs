@@ -48,11 +48,13 @@ fn main() {
 
         let result = exec_context.execute(&ir_mod);
 
-        if opts.debug {
-            println!("{:?}", ir_mod);
-            println!("{:?}", result);
-        } else {
-            println!("{}", result);
+        if let Some(result) = result {
+            if opts.debug {
+                println!("{:?}", ir_mod);
+                println!("{:?}", result);
+            } else {
+                println!("{}", result);
+            }
         }
     }
 }
@@ -79,6 +81,41 @@ mod test {
         let mut exec_context = execute::ExecContext::new();
         let result = exec_context.execute(&ir_mod);
         println!("{:?}", result);
-        assert_eq!(result, Literal::Integer(15));
+        assert_eq!(result, Some(Literal::Integer(15)));
+    }
+
+    #[test]
+    fn partial_application() {
+        let line = "f = (\\x -> \\y -> x + y) 5";
+        let expr = match parser::parse_expression(&line) {
+            Ok((remaining, expr)) => {
+                println!("{:?} (remaining: {:?})", expr, remaining);
+                expr
+            }
+            Err(e) => panic!("{}", e),
+        };
+
+        let mut ir_mod = ir_tree::Module::from_expr(&expr);
+        println!("{:?}", ir_mod);
+
+        let mut exec_context = execute::ExecContext::new();
+        let result = exec_context.execute(&ir_mod);
+        println!("{:?}", result);
+        assert_eq!(result, None);
+
+        let line = "f 10";
+        let expr = match parser::parse_expression(&line) {
+            Ok((remaining, expr)) => {
+                println!("{:?} (remaining: {:?})", expr, remaining);
+                expr
+            }
+            Err(e) => panic!("{}", e),
+        };
+        let new_root = ir_mod.add_expr(&expr);
+        ir_mod.set_root(new_root);
+
+        let result = exec_context.execute(&ir_mod);
+        println!("{:?}", result);
+        assert_eq!(result, Some(Literal::Integer(15)));
     }
 }

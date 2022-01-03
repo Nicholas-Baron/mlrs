@@ -3,10 +3,14 @@ use crate::syntax::{BinaryOperation, Identifier, Literal};
 
 use std::collections::HashMap;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum ExecValue {
     Literal(Literal),
     Identifier(Identifier),
+    Closure {
+        lambda: IRId,
+        bound_values: HashMap<Identifier, ExecValue>,
+    },
 }
 
 pub struct ExecContext {
@@ -23,13 +27,23 @@ impl ExecContext {
         }
     }
 
-    pub fn execute(&mut self, module: &Module) -> Literal {
+    fn current_bindings(&self) -> HashMap<Identifier, ExecValue> {
+        let mut result = HashMap::default();
+
+        for scope in &self.named_values {
+            result.extend(scope.clone());
+        }
+
+        result
+    }
+
+    pub fn execute(&mut self, module: &Module) -> Option<Literal> {
         let start_id = module.root_id().cloned().unwrap();
         self.execute_id(module, &start_id);
-        match self.evaluation_stack.pop() {
-            Some(ExecValue::Literal(lit)) => lit,
-            _ => panic!(),
-        }
+        self.evaluation_stack.pop().and_then(|opt| match opt {
+            ExecValue::Literal(lit) => Some(lit),
+            _ => None,
+        })
     }
 
     fn find_value(&self, name: &Identifier) -> Option<&ExecValue> {
@@ -60,17 +74,25 @@ impl ExecContext {
                 }
             },
             IRItem::Lambda { parameter, body } => {
-                self.named_values.push(HashMap::default());
-                self.execute_id(module, &parameter);
-                let id = if let Some(ExecValue::Identifier(id)) = self.evaluation_stack.pop() {
-                    id
+                if self.evaluation_stack.is_empty() {
+                    self.evaluation_stack.push(ExecValue::Closure {
+                        lambda: id.clone(),
+                        bound_values: self.current_bindings(),
+                    });
                 } else {
-                    panic!()
-                };
-                self.named_values
-                    .last_mut()
-                    .map(|map| map.insert(id, self.evaluation_stack.pop().unwrap()));
-                self.execute_id(module, &body);
+                    self.named_values.push(HashMap::default());
+                    self.execute_id(module, &parameter);
+                    let id = if let Some(ExecValue::Identifier(id)) = self.evaluation_stack.pop() {
+                        id
+                    } else {
+                        panic!()
+                    };
+                    let value = self.evaluation_stack.pop().unwrap();
+                    self.named_values
+                        .last_mut()
+                        .map(|map| map.insert(id, value));
+                    self.execute_id(module, &body);
+                }
             }
         }
     }
@@ -81,6 +103,7 @@ impl ExecContext {
                 Literal::Boolean(_) => panic!(),
             },
             ExecValue::Identifier(id) => self.unpack_exec(self.find_value(id).unwrap()),
+            ExecValue::Closure { .. } => panic!(),
         }
     }
 
