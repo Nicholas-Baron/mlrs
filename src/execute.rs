@@ -72,6 +72,7 @@ impl ExecContext {
                     self.execute_id(module, &rhs);
                     self.execute_id(module, &lhs);
                 }
+                BinaryOperation::Mult => todo!(),
             },
             IRItem::Lambda { parameter, body } => {
                 if self.evaluation_stack.is_empty() {

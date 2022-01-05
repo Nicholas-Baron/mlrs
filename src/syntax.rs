@@ -31,6 +31,7 @@ pub enum Expr {
 pub enum BinaryOperation {
     Application,
     Plus,
+    Mult,
 }
 
 // TODO: Fold this into `Expr`?

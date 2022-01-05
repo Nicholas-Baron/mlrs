@@ -83,13 +83,32 @@ fn parse_addition(input: &str) -> IResult<&str, Expr> {
     combinator::map(
         multi::separated_list1(
             sequence::delimited(space0, char('+'), space0),
-            parse_application,
+            parse_multiplication,
         ),
         |exprs| {
             exprs
                 .into_iter()
                 .reduce(|lhs, rhs| Expr::Binary {
                     op: BinaryOperation::Plus,
+                    lhs: Box::new(lhs),
+                    rhs: Box::new(rhs),
+                })
+                .expect("separated_list1 should always give at least 1 item")
+        },
+    )(input)
+}
+
+fn parse_multiplication(input: &str) -> IResult<&str, Expr> {
+    combinator::map(
+        multi::separated_list1(
+            sequence::delimited(space0, char('*'), space0),
+            parse_application,
+        ),
+        |exprs| {
+            exprs
+                .into_iter()
+                .reduce(|lhs, rhs| Expr::Binary {
+                    op: BinaryOperation::Mult,
                     lhs: Box::new(lhs),
                     rhs: Box::new(rhs),
                 })
@@ -291,6 +310,50 @@ mod tests {
         );
     }
 
+    #[test]
+    fn parse_multiplication_test() {
+        assert_eq!(
+            parse_expression("x * y"),
+            Ok((
+                "",
+                Expr::Binary {
+                    op: BinaryOperation::Mult,
+                    lhs: Box::new(Expr::Identifier("x".to_string())),
+                    rhs: Box::new(Expr::Identifier("y".to_string())),
+                }
+            ))
+        );
+        assert_eq!(
+            parse_expression("x + y * z"),
+            Ok((
+                "",
+                Expr::Binary {
+                    op: BinaryOperation::Plus,
+                    lhs: Box::new(Expr::Identifier("x".to_string())),
+                    rhs: Box::new(Expr::Binary {
+                        op: BinaryOperation::Mult,
+                        lhs: Box::new(Expr::Identifier("y".to_string())),
+                        rhs: Box::new(Expr::Identifier("z".to_string())),
+                    }),
+                }
+            ))
+        );
+        assert_eq!(
+            parse_expression("f x * y"),
+            Ok((
+                "",
+                Expr::Binary {
+                    op: BinaryOperation::Mult,
+                    lhs: Box::new(Expr::Binary {
+                        lhs: Box::new(Expr::Identifier("f".to_string())),
+                        rhs: Box::new(Expr::Identifier("x".to_string())),
+                        op: BinaryOperation::Application,
+                    }),
+                    rhs: Box::new(Expr::Identifier("y".to_string())),
+                }
+            ))
+        );
+    }
     #[test]
     fn parse_binding_test() {
         assert_eq!(
