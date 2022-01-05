@@ -15,6 +15,10 @@ fn parse_identifier(input: &str) -> IResult<&str, String> {
 }
 
 pub fn parse_expression(input: &str) -> IResult<&str, Expr> {
+    branch::alt((parse_binding, parse_lambda))(input)
+}
+
+fn parse_binding(input: &str) -> IResult<&str, Expr> {
     branch::alt((
         combinator::map(
             sequence::tuple((
@@ -30,7 +34,27 @@ pub fn parse_expression(input: &str) -> IResult<&str, Expr> {
                 expr: Box::new(expr),
             },
         ),
-        parse_lambda,
+        combinator::map(
+            sequence::tuple((
+                space0,
+                parse_identifier,
+                space1,
+                multi::separated_list1(space1, parse_identifier),
+                space0,
+                char('='),
+                space0,
+                parse_lambda,
+            )),
+            |(_, name, _, args, _, _eq, _, expr)| Expr::Binding {
+                name,
+                expr: args.into_iter().rev().fold(Box::new(expr), |body, arg| {
+                    Box::new(Expr::Lambda {
+                        body,
+                        parameter: arg,
+                    })
+                }),
+            },
+        ),
     ))(input)
 }
 
@@ -278,6 +302,14 @@ mod tests {
                     expr: Box::new(Expr::Literal(Literal::Integer(5)))
                 }
             ))
+        );
+    }
+
+    #[test]
+    fn parse_function_binding_test() {
+        assert_eq!(
+            parse_expression("f x y = x + y"),
+            parse_expression("f = \\x -> \\y -> x+y")
         );
     }
 }
