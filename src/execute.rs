@@ -56,7 +56,7 @@ impl ExecContext {
             IRItem::Literal(l) => self.evaluation_stack.push(ExecValue::Literal(l)),
             IRItem::Identifier(id) => self.evaluation_stack.push(ExecValue::Identifier(id)),
             IRItem::Binary { lhs, rhs, op } => match op {
-                BinaryOperation::Plus => {
+                BinaryOperation::Mult | BinaryOperation::Plus => {
                     self.execute_id(module, &lhs);
                     let lhs_val = self.evaluation_stack.pop();
 
@@ -64,7 +64,7 @@ impl ExecContext {
                     let rhs_val = self.evaluation_stack.pop();
 
                     match (lhs_val, rhs_val) {
-                        (Some(l), Some(r)) => self.add(l, r),
+                        (Some(l), Some(r)) => self.execute_op(op, l, r),
                         _ => panic!(),
                     }
                 }
@@ -72,7 +72,6 @@ impl ExecContext {
                     self.execute_id(module, &rhs);
                     self.execute_id(module, &lhs);
                 }
-                BinaryOperation::Mult => todo!(),
             },
             IRItem::Lambda { parameter, body } => {
                 if self.evaluation_stack.is_empty() {
@@ -108,10 +107,19 @@ impl ExecContext {
         }
     }
 
-    fn add(&mut self, l: ExecValue, r: ExecValue) {
+    fn execute_op(&mut self, op: BinaryOperation, l: ExecValue, r: ExecValue) {
         let lhs_val = self.unpack_exec(&l);
         let rhs_val = self.unpack_exec(&r);
-        self.evaluation_stack
-            .push(ExecValue::Literal(Literal::Integer(lhs_val + rhs_val)));
+        match op {
+            BinaryOperation::Plus => self
+                .evaluation_stack
+                .push(ExecValue::Literal(Literal::Integer(lhs_val + rhs_val))),
+            BinaryOperation::Mult => self
+                .evaluation_stack
+                .push(ExecValue::Literal(Literal::Integer(lhs_val * rhs_val))),
+            BinaryOperation::Application => {
+                panic!("execute_op should never need to call a function")
+            }
+        }
     }
 }
