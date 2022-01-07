@@ -24,6 +24,11 @@ pub enum IRItem {
         rhs: IRId,
         op: BinaryOperation,
     },
+    If {
+        condition: IRId,
+        true_value: IRId,
+        false_value: IRId,
+    },
 }
 
 #[derive(Default, Debug)]
@@ -127,7 +132,18 @@ impl Module {
                     op: op.clone(),
                 },
             ),
-            Expr::If { .. } => todo!(),
+            Expr::If {
+                condition,
+                true_value,
+                false_value,
+            } => (
+                self.next_ir_id(),
+                IRItem::If {
+                    condition: self.add_expr(condition),
+                    true_value: self.add_expr(true_value),
+                    false_value: self.add_expr(false_value),
+                },
+            ),
         };
         self.ir_items.insert(expr_id.clone(), ir_expr);
         expr_id

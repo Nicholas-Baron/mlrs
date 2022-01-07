@@ -94,6 +94,30 @@ impl ExecContext {
                     self.execute_id(module, &body);
                 }
             }
+            IRItem::If {
+                condition,
+                true_value,
+                false_value,
+            } => {
+                self.execute_id(module, &condition);
+                let condition = self.evaluation_stack.pop().unwrap();
+                if self.unpack_exec_bool(&condition) {
+                    self.execute_id(module, &true_value)
+                } else {
+                    self.execute_id(module, &false_value)
+                }
+            }
+        }
+    }
+
+    fn unpack_exec_bool(&self, val: &ExecValue) -> bool {
+        match val {
+            ExecValue::Literal(lit) => match lit {
+                Literal::Integer(_) => panic!(),
+                Literal::Boolean(val) => *val,
+            },
+            ExecValue::Identifier(id) => self.unpack_exec_bool(self.find_value(id).unwrap()),
+            ExecValue::Closure { .. } => panic!(),
         }
     }
 

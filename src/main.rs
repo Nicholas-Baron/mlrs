@@ -153,4 +153,39 @@ mod test {
         println!("{:?}", result);
         assert_eq!(result, Some(Literal::Integer(20)));
     }
+
+    #[test]
+    fn conditionalsd() {
+        let line = "if true then 5 else 10";
+        let expr = match parser::parse_expression(&line) {
+            Ok((remaining, expr)) => {
+                println!("{:?} (remaining: {:?})", expr, remaining);
+                expr
+            }
+            Err(e) => panic!("{}", e),
+        };
+
+        let mut ir_mod = ir_tree::Module::from_expr(&expr);
+        println!("{:?}", ir_mod);
+
+        let mut exec_context = execute::ExecContext::new();
+        let result = exec_context.execute(&ir_mod);
+        println!("{:?}", result);
+        assert_eq!(result, Some(Literal::Integer(5)));
+
+        let line = "if false then 5 else 10";
+        let expr = match parser::parse_expression(&line) {
+            Ok((remaining, expr)) => {
+                println!("{:?} (remaining: {:?})", expr, remaining);
+                expr
+            }
+            Err(e) => panic!("{}", e),
+        };
+        let new_root = ir_mod.add_expr(&expr);
+        ir_mod.set_root(new_root);
+
+        let result = exec_context.execute(&ir_mod);
+        println!("{:?}", result);
+        assert_eq!(result, Some(Literal::Integer(10)));
+    }
 }
