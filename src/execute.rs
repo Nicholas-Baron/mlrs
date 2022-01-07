@@ -96,20 +96,21 @@ impl ExecContext {
             }
         }
     }
-    fn unpack_exec(&self, val: &ExecValue) -> i64 {
+
+    fn unpack_exec_int(&self, val: &ExecValue) -> i64 {
         match val {
             ExecValue::Literal(lit) => match lit {
                 Literal::Integer(val) => *val,
                 Literal::Boolean(_) => panic!(),
             },
-            ExecValue::Identifier(id) => self.unpack_exec(self.find_value(id).unwrap()),
+            ExecValue::Identifier(id) => self.unpack_exec_int(self.find_value(id).unwrap()),
             ExecValue::Closure { .. } => panic!(),
         }
     }
 
     fn execute_op(&mut self, op: BinaryOperation, l: ExecValue, r: ExecValue) {
-        let lhs_val = self.unpack_exec(&l);
-        let rhs_val = self.unpack_exec(&r);
+        let lhs_val = self.unpack_exec_int(&l);
+        let rhs_val = self.unpack_exec_int(&r);
         match op {
             BinaryOperation::Plus => self
                 .evaluation_stack
