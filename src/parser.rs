@@ -9,9 +9,15 @@ use nom::{
 
 fn parse_identifier(input: &str) -> IResult<&str, String> {
     use complete::{alpha1, alphanumeric0};
-    combinator::map(sequence::pair(alpha1, alphanumeric0), |(first, second)| {
-        format!("{}{}", first, second)
-    })(input)
+    combinator::verify(
+        combinator::map(sequence::pair(alpha1, alphanumeric0), |(first, second)| {
+            format!("{}{}", first, second)
+        }),
+        |id: &String| {
+            let reserved = ["if", "then", "else"];
+            !reserved.into_iter().any(|kw| kw == id)
+        },
+    )(input)
 }
 
 pub fn parse_expression(input: &str) -> IResult<&str, Expr> {
@@ -60,7 +66,6 @@ fn parse_binding(input: &str) -> IResult<&str, Expr> {
 
 fn parse_lambda(input: &str) -> IResult<&str, Expr> {
     branch::alt((
-        parse_addition,
         combinator::map(
             sequence::tuple((
                 space0,
@@ -76,6 +81,30 @@ fn parse_lambda(input: &str) -> IResult<&str, Expr> {
                 body: Box::new(body),
             },
         ),
+        parse_if_expr,
+    ))(input)
+}
+
+fn parse_if_expr(input: &str) -> IResult<&str, Expr> {
+    branch::alt((
+        combinator::map(
+            sequence::tuple((
+                tag("if"),
+                parse_expression,
+                space1,
+                tag("then"),
+                parse_expression,
+                space1,
+                tag("else"),
+                parse_expression,
+            )),
+            |(_if, condition, _, _then, lhs, _, _else, rhs)| Expr::If {
+                condition: Box::new(condition),
+                true_value: Box::new(lhs),
+                false_value: Box::new(rhs),
+            },
+        ),
+        parse_addition,
     ))(input)
 }
 
@@ -354,6 +383,37 @@ mod tests {
             ))
         );
     }
+
+    #[test]
+    fn parse_if_expression_test() {
+        assert_eq!(
+            parse_expression("if x then y else z"),
+            Ok((
+                "",
+                Expr::If {
+                    condition: Box::new(Expr::Identifier("x".to_string())),
+                    true_value: Box::new(Expr::Identifier("y".to_string())),
+                    false_value: Box::new(Expr::Identifier("z".to_string())),
+                }
+            ))
+        );
+        assert_eq!(
+            parse_expression("if x then y else z + 1"),
+            Ok((
+                "",
+                Expr::If {
+                    condition: Box::new(Expr::Identifier("x".to_string())),
+                    true_value: Box::new(Expr::Identifier("y".to_string())),
+                    false_value: Box::new(Expr::Binary {
+                        op: BinaryOperation::Plus,
+                        lhs: Box::new(Expr::Identifier("z".to_string())),
+                        rhs: Box::new(Expr::Literal(Literal::Integer(1)))
+                    })
+                }
+            ))
+        );
+    }
+
     #[test]
     fn parse_binding_test() {
         assert_eq!(

@@ -25,6 +25,11 @@ pub enum Expr {
         rhs: Box<Expr>,
         op: BinaryOperation,
     },
+    If {
+        condition: Box<Expr>,
+        true_value: Box<Expr>,
+        false_value: Box<Expr>,
+    },
 }
 
 #[derive(PartialEq, Debug, Clone)]

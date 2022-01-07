@@ -127,6 +127,7 @@ impl Module {
                     op: op.clone(),
                 },
             ),
+            Expr::If { .. } => todo!(),
         };
         self.ir_items.insert(expr_id.clone(), ir_expr);
         expr_id
