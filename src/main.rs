@@ -1,4 +1,5 @@
-use std::io;
+use std::path::PathBuf;
+use std::{fs, io};
 
 use structopt::StructOpt;
 
@@ -12,6 +13,10 @@ mod syntax;
 struct Options {
     #[structopt(short, long)]
     debug: bool,
+
+    /// Input file
+    #[structopt(parse(from_os_str))]
+    input: Option<PathBuf>,
 }
 
 fn main() {
@@ -22,6 +27,28 @@ fn main() {
 
     let mut ir_mod = ir_tree::Module::new();
     let mut exec_context = execute::ExecContext::new();
+
+    if let Some(ref filename) = opts.input {
+        let file_data = match fs::read_to_string(filename) {
+            Ok(data) => data,
+            Err(e) => {
+                eprintln!("Error loading {:?}: {}", filename, e);
+                Default::default()
+            }
+        };
+
+        match parser::parse_expression(&file_data) {
+            Ok((remaining, expr)) => {
+                if opts.debug {
+                    println!("{:?} (remaining: {:?})", expr, remaining);
+                }
+                ir_mod.add_expr(&expr);
+            }
+            Err(e) => {
+                eprintln!("{}", e);
+            }
+        }
+    }
 
     while let Ok(byte_count) = stdin.read_line(&mut line) {
         if byte_count == 0 {
