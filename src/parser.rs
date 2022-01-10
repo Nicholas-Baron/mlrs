@@ -31,6 +31,13 @@ fn parse_comment(input: &str) -> IResult<&str, ()> {
     )(input)
 }
 
+pub fn parse_expression_list(input: &str) -> IResult<&str, Vec<Expr>> {
+    multi::separated_list1(
+        multi::many1(branch::alt((complete::line_ending, tag(";")))),
+        parse_expression,
+    )(input)
+}
+
 pub fn parse_expression(input: &str) -> IResult<&str, Expr> {
     let (input, _) = combinator::opt(parse_comment)(input)?;
     branch::alt((parse_binding, parse_lambda))(input)
@@ -438,6 +445,14 @@ mod tests {
                 }
             ))
         );
+    }
+
+    #[test]
+    fn parse_expressions_test() {
+        let (rest, exprs) = parse_expression_list("f x y = x + y\n\n double x = x * 2").unwrap();
+        eprintln!("unparsed: '{}'", rest);
+        assert_eq!(rest.len(), 0);
+        assert_eq!(exprs.len(), 2);
     }
 
     #[test]

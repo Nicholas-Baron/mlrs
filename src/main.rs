@@ -37,12 +37,15 @@ fn main() {
             }
         };
 
-        match parser::parse_expression(&file_data) {
-            Ok((remaining, expr)) => {
+        match parser::parse_expression_list(&file_data) {
+            Ok((remaining, exprs)) => {
                 if opts.debug {
-                    println!("{:?} (remaining: {:?})", expr, remaining);
+                    println!("{:?} (remaining: {:?})", exprs, remaining);
                 }
-                ir_mod.add_expr(&expr);
+
+                for expr in exprs {
+                    ir_mod.add_expr(&expr);
+                }
             }
             Err(e) => {
                 eprintln!("{}", e);
