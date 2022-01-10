@@ -20,7 +20,19 @@ fn parse_identifier(input: &str) -> IResult<&str, String> {
     )(input)
 }
 
+fn parse_comment(input: &str) -> IResult<&str, ()> {
+    combinator::value(
+        (),
+        sequence::tuple((
+            branch::alt((tag("#"), tag("//"), tag("--"))),
+            complete::not_line_ending,
+            complete::line_ending,
+        )),
+    )(input)
+}
+
 pub fn parse_expression(input: &str) -> IResult<&str, Expr> {
+    let (input, _) = combinator::opt(parse_comment)(input)?;
     branch::alt((parse_binding, parse_lambda))(input)
 }
 
@@ -426,6 +438,13 @@ mod tests {
                 }
             ))
         );
+    }
+
+    #[test]
+    fn parse_comment_test() {
+        assert_eq!(parse_expression("-- Hello World\n5"), parse_expression("5"));
+        assert_eq!(parse_expression("// This is\n5"), parse_expression("5"));
+        assert_eq!(parse_expression("# a comment\n5"), parse_expression("5"));
     }
 
     #[test]
