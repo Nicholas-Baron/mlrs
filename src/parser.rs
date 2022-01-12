@@ -14,7 +14,7 @@ fn parse_identifier(input: &str) -> IResult<&str, String> {
             format!("{}{}", first, second)
         }),
         |id: &String| {
-            let reserved = ["if", "then", "else"];
+            let reserved = ["if", "then", "else", "true", "True", "false", "False"];
             !reserved.into_iter().any(|kw| kw == id)
         },
     )(input)
@@ -161,39 +161,38 @@ fn parse_addition(input: &str) -> IResult<&str, Expr> {
 
     Ok((
         input,
-        if exprs.is_empty() {
-            expr
-        } else {
-            exprs.into_iter().fold(expr, |lhs, (op, rhs)| Expr::Binary {
-                lhs: Box::new(lhs),
-                rhs: Box::new(rhs),
-                op: match op {
-                    '+' => BinaryOperation::Plus,
-                    '-' => BinaryOperation::Minus,
-                    _ => unreachable!(),
-                },
-            })
-        },
+        exprs.into_iter().fold(expr, |lhs, (op, rhs)| Expr::Binary {
+            lhs: Box::new(lhs),
+            rhs: Box::new(rhs),
+            op: match op {
+                '+' => BinaryOperation::Plus,
+                '-' => BinaryOperation::Minus,
+                _ => unreachable!(),
+            },
+        }),
     ))
 }
 
 fn parse_multiplication(input: &str) -> IResult<&str, Expr> {
-    combinator::map(
-        multi::separated_list1(
-            sequence::delimited(space0, char('*'), space0),
-            parse_application,
-        ),
-        |exprs| {
-            exprs
-                .into_iter()
-                .reduce(|lhs, rhs| Expr::Binary {
-                    op: BinaryOperation::Mult,
-                    lhs: Box::new(lhs),
-                    rhs: Box::new(rhs),
-                })
-                .expect("separated_list1 should always give at least 1 item")
-        },
-    )(input)
+    let (input, expr) = parse_application(input)?;
+
+    let (input, exprs): (_, Vec<(_, _)>) = multi::many0(sequence::tuple((
+        sequence::delimited(space0, branch::alt((char('*'), char('/'))), space0),
+        parse_application,
+    )))(input)?;
+
+    Ok((
+        input,
+        exprs.into_iter().fold(expr, |lhs, (op, rhs)| Expr::Binary {
+            lhs: Box::new(lhs),
+            rhs: Box::new(rhs),
+            op: match op {
+                '*' => BinaryOperation::Mult,
+                '/' => todo!("Implement division"),
+                _ => unreachable!(),
+            },
+        }),
+    ))
 }
 
 fn parse_application(input: &str) -> IResult<&str, Expr> {
