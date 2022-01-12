@@ -35,6 +35,7 @@ pub enum Expr {
 #[derive(PartialEq, Debug, Clone)]
 pub enum BinaryOperation {
     Application,
+    Equality,
     Plus,
     Mult,
 }

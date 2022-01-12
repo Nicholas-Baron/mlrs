@@ -123,8 +123,27 @@ fn parse_if_expr(input: &str) -> IResult<&str, Expr> {
                 false_value: Box::new(rhs),
             },
         ),
-        parse_addition,
+        parse_equality,
     ))(input)
+}
+
+fn parse_equality(input: &str) -> IResult<&str, Expr> {
+    combinator::map(
+        multi::separated_list1(
+            sequence::delimited(space0, tag("=="), space0),
+            parse_addition,
+        ),
+        |exprs| {
+            exprs
+                .into_iter()
+                .reduce(|lhs, rhs| Expr::Binary {
+                    op: BinaryOperation::Equality,
+                    lhs: Box::new(lhs),
+                    rhs: Box::new(rhs),
+                })
+                .expect("separated_list1 should always give at least 1 item")
+        },
+    )(input)
 }
 
 fn parse_addition(input: &str) -> IResult<&str, Expr> {
@@ -467,6 +486,27 @@ mod tests {
         assert_eq!(
             parse_expression("f x y = x + y"),
             parse_expression("f = \\x -> \\y -> x+y")
+        );
+    }
+
+    #[test]
+    fn parse_equality_test() {
+        assert_eq!(
+            parse_expression("isZero x = x == 0"),
+            Ok((
+                "",
+                Expr::Binding {
+                    name: "isZero".to_string(),
+                    expr: Box::new(Expr::Lambda {
+                        parameter: "x".to_string(),
+                        body: Box::new(Expr::Binary {
+                            op: BinaryOperation::Equality,
+                            lhs: Box::new(Expr::Identifier("x".to_string())),
+                            rhs: Box::new(Expr::Literal(Literal::Integer(0)))
+                        })
+                    })
+                }
+            ))
         );
     }
 }
