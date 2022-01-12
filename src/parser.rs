@@ -38,11 +38,11 @@ fn parse_expression_separator(input: &str) -> IResult<&str, ()> {
     )(input)
 }
 
-pub fn parse_expression_list(input: &str) -> IResult<&str, Vec<Expr>> {
-    multi::separated_list1(parse_expression_separator, parse_expression)(input)
+pub fn parse_expression_binding_list(input: &str) -> IResult<&str, Vec<Expr>> {
+    multi::separated_list1(parse_expression_separator, parse_expression_binding)(input)
 }
 
-pub fn parse_expression(input: &str) -> IResult<&str, Expr> {
+pub fn parse_expression_binding(input: &str) -> IResult<&str, Expr> {
     let (input, _) = multi::many0(branch::alt((parse_comment, parse_expression_separator)))(input)?;
     branch::alt((parse_binding, parse_lambda))(input)
 }
@@ -85,6 +85,11 @@ fn parse_binding(input: &str) -> IResult<&str, Expr> {
             },
         ),
     ))(input)
+}
+
+fn parse_expression(input: &str) -> IResult<&str, Expr> {
+    let (input, _) = multi::many0(branch::alt((parse_comment, parse_expression_separator)))(input)?;
+    parse_lambda(input)
 }
 
 fn parse_lambda(input: &str) -> IResult<&str, Expr> {
@@ -526,7 +531,7 @@ mod tests {
     #[test]
     fn parse_binding_test() {
         assert_eq!(
-            parse_expression("x = 5"),
+            parse_expression_binding("x = 5"),
             Ok((
                 "",
                 Expr::Binding {
@@ -539,7 +544,8 @@ mod tests {
 
     #[test]
     fn parse_expressions_test() {
-        let (rest, exprs) = parse_expression_list("f x y = x + y\n\n double x = x * 2").unwrap();
+        let (rest, exprs) =
+            parse_expression_binding_list("f x y = x + y\n\n double x = x * 2").unwrap();
         eprintln!("unparsed: '{}'", rest);
         assert_eq!(rest.len(), 0);
         assert_eq!(exprs.len(), 2);
@@ -555,18 +561,18 @@ mod tests {
     #[test]
     fn parse_function_binding_test() {
         assert_eq!(
-            parse_expression("f x y = x + y"),
-            parse_expression("f = \\x -> \\y -> x+y")
+            parse_expression_binding("f x y = x + y"),
+            parse_expression_binding("f = \\x -> \\y -> x+y")
         );
     }
 
     #[test]
     fn parse_extra_newlines_test() {
         assert_eq!(
-            parse_expression("f x y = x + y"),
-            parse_expression("f x y\n    = x + y")
+            parse_expression_binding("f x y = x + y"),
+            parse_expression_binding("f x y\n    = x + y")
         );
-        let (rest, expr) = parse_expression(
+        let (rest, expr) = parse_expression_binding(
             r"
 fib x = if x == 0 then 0
    else if x == 1 then 1
@@ -581,19 +587,13 @@ fib x = if x == 0 then 0
     #[test]
     fn parse_equality_test() {
         assert_eq!(
-            parse_expression("isZero x = x == 0"),
+            parse_expression("x == 0"),
             Ok((
                 "",
-                Expr::Binding {
-                    name: "isZero".to_string(),
-                    expr: Box::new(Expr::Lambda {
-                        parameter: "x".to_string(),
-                        body: Box::new(Expr::Binary {
-                            op: BinaryOperation::Equality,
-                            lhs: Box::new(Expr::Identifier("x".to_string())),
-                            rhs: Box::new(Expr::Literal(Literal::Integer(0)))
-                        })
-                    })
+                Expr::Binary {
+                    op: BinaryOperation::Equality,
+                    lhs: Box::new(Expr::Identifier("x".to_string())),
+                    rhs: Box::new(Expr::Literal(Literal::Integer(0)))
                 }
             ))
         );

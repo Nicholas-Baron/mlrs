@@ -37,7 +37,7 @@ fn main() {
             }
         };
 
-        match parser::parse_expression_list(&file_data) {
+        match parser::parse_expression_binding_list(&file_data) {
             Ok((remaining, exprs)) => {
                 if opts.debug {
                     println!("{:?} (remaining: {:?})", exprs, remaining);
@@ -58,7 +58,7 @@ fn main() {
             break;
         }
 
-        let expr = match parser::parse_expression(&line) {
+        let expr = match parser::parse_expression_binding(&line) {
             Ok((remaining, expr)) => {
                 if opts.debug {
                     println!("{:?} (remaining: {:?})", expr, remaining);
@@ -97,7 +97,7 @@ mod test {
     #[test]
     fn basic_program_test() {
         let line = "(\\x -> \\y -> x + y) 5 10";
-        let expr = match parser::parse_expression(&line) {
+        let expr = match parser::parse_expression_binding(&line) {
             Ok((remaining, expr)) => {
                 println!("{:?} (remaining: {:?})", expr, remaining);
                 expr
@@ -117,7 +117,7 @@ mod test {
     #[test]
     fn partial_application() {
         let line = "f = (\\x -> \\y -> x + y) 5";
-        let expr = match parser::parse_expression(&line) {
+        let expr = match parser::parse_expression_binding(&line) {
             Ok((remaining, expr)) => {
                 println!("{:?} (remaining: {:?})", expr, remaining);
                 expr
@@ -134,7 +134,7 @@ mod test {
         assert_eq!(result, None);
 
         let line = "f 10";
-        let expr = match parser::parse_expression(&line) {
+        let expr = match parser::parse_expression_binding(&line) {
             Ok((remaining, expr)) => {
                 println!("{:?} (remaining: {:?})", expr, remaining);
                 expr
@@ -152,7 +152,7 @@ mod test {
     #[test]
     fn normal_functions_and_multiplication() {
         let line = "double x = x * 2";
-        let expr = match parser::parse_expression(&line) {
+        let expr = match parser::parse_expression_binding(&line) {
             Ok((remaining, expr)) => {
                 println!("{:?} (remaining: {:?})", expr, remaining);
                 expr
@@ -169,7 +169,7 @@ mod test {
         assert_eq!(result, None);
 
         let line = "double 10";
-        let expr = match parser::parse_expression(&line) {
+        let expr = match parser::parse_expression_binding(&line) {
             Ok((remaining, expr)) => {
                 println!("{:?} (remaining: {:?})", expr, remaining);
                 expr
@@ -187,7 +187,7 @@ mod test {
     #[test]
     fn conditionalsd() {
         let line = "if true then 5 else 10";
-        let expr = match parser::parse_expression(&line) {
+        let expr = match parser::parse_expression_binding(&line) {
             Ok((remaining, expr)) => {
                 println!("{:?} (remaining: {:?})", expr, remaining);
                 expr
@@ -204,7 +204,7 @@ mod test {
         assert_eq!(result, Some(Literal::Integer(5)));
 
         let line = "if false then 5 else 10";
-        let expr = match parser::parse_expression(&line) {
+        let expr = match parser::parse_expression_binding(&line) {
             Ok((remaining, expr)) => {
                 println!("{:?} (remaining: {:?})", expr, remaining);
                 expr
