@@ -38,6 +38,7 @@ pub enum BinaryOperation {
     Equality,
     Plus,
     Mult,
+    Minus,
 }
 
 // TODO: Fold this into `Expr`?

@@ -147,22 +147,29 @@ fn parse_equality(input: &str) -> IResult<&str, Expr> {
 }
 
 fn parse_addition(input: &str) -> IResult<&str, Expr> {
-    combinator::map(
-        multi::separated_list1(
-            sequence::delimited(space0, char('+'), space0),
-            parse_multiplication,
-        ),
-        |exprs| {
-            exprs
-                .into_iter()
-                .reduce(|lhs, rhs| Expr::Binary {
-                    op: BinaryOperation::Plus,
-                    lhs: Box::new(lhs),
-                    rhs: Box::new(rhs),
-                })
-                .expect("separated_list1 should always give at least 1 item")
+    let (input, expr) = parse_multiplication(input)?;
+
+    let (input, exprs): (_, Vec<(_, _)>) = multi::many0(sequence::tuple((
+        sequence::delimited(space0, branch::alt((char('+'), char('-'))), space0),
+        parse_multiplication,
+    )))(input)?;
+
+    Ok((
+        input,
+        if exprs.is_empty() {
+            expr
+        } else {
+            exprs.into_iter().fold(expr, |lhs, (op, rhs)| Expr::Binary {
+                lhs: Box::new(lhs),
+                rhs: Box::new(rhs),
+                op: match op {
+                    '+' => BinaryOperation::Plus,
+                    '-' => BinaryOperation::Minus,
+                    _ => unreachable!(),
+                },
+            })
         },
-    )(input)
+    ))
 }
 
 fn parse_multiplication(input: &str) -> IResult<&str, Expr> {
@@ -366,6 +373,51 @@ mod tests {
                 "",
                 Expr::Binary {
                     op: BinaryOperation::Plus,
+                    lhs: Box::new(Expr::Binary {
+                        lhs: Box::new(Expr::Identifier("f".to_string())),
+                        rhs: Box::new(Expr::Identifier("x".to_string())),
+                        op: BinaryOperation::Application,
+                    }),
+                    rhs: Box::new(Expr::Identifier("y".to_string())),
+                }
+            ))
+        );
+    }
+
+    #[test]
+    fn parse_subtraction_test() {
+        assert_eq!(
+            parse_expression("x - y"),
+            Ok((
+                "",
+                Expr::Binary {
+                    op: BinaryOperation::Minus,
+                    lhs: Box::new(Expr::Identifier("x".to_string())),
+                    rhs: Box::new(Expr::Identifier("y".to_string())),
+                }
+            ))
+        );
+        assert_eq!(
+            parse_expression("x + y - z"),
+            Ok((
+                "",
+                Expr::Binary {
+                    op: BinaryOperation::Minus,
+                    lhs: Box::new(Expr::Binary {
+                        op: BinaryOperation::Plus,
+                        lhs: Box::new(Expr::Identifier("x".to_string())),
+                        rhs: Box::new(Expr::Identifier("y".to_string())),
+                    }),
+                    rhs: Box::new(Expr::Identifier("z".to_string())),
+                }
+            ))
+        );
+        assert_eq!(
+            parse_expression("f x - y"),
+            Ok((
+                "",
+                Expr::Binary {
+                    op: BinaryOperation::Minus,
                     lhs: Box::new(Expr::Binary {
                         lhs: Box::new(Expr::Identifier("f".to_string())),
                         rhs: Box::new(Expr::Identifier("x".to_string())),

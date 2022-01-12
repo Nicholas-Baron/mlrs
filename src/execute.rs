@@ -56,7 +56,10 @@ impl ExecContext {
             IRItem::Literal(l) => self.evaluation_stack.push(ExecValue::Literal(l)),
             IRItem::Identifier(id) => self.evaluation_stack.push(ExecValue::Identifier(id)),
             IRItem::Binary { lhs, rhs, op } => match op {
-                BinaryOperation::Mult | BinaryOperation::Plus | BinaryOperation::Equality => {
+                BinaryOperation::Mult
+                | BinaryOperation::Plus
+                | BinaryOperation::Equality
+                | BinaryOperation::Minus => {
                     self.execute_id(module, &lhs);
                     let lhs_val = self.evaluation_stack.pop();
 
@@ -139,6 +142,9 @@ impl ExecContext {
             BinaryOperation::Plus => self
                 .evaluation_stack
                 .push(ExecValue::Literal(Literal::Integer(lhs_val + rhs_val))),
+            BinaryOperation::Minus => self
+                .evaluation_stack
+                .push(ExecValue::Literal(Literal::Integer(lhs_val - rhs_val))),
             BinaryOperation::Mult => self
                 .evaluation_stack
                 .push(ExecValue::Literal(Literal::Integer(lhs_val * rhs_val))),
