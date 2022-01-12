@@ -31,15 +31,19 @@ fn parse_comment(input: &str) -> IResult<&str, ()> {
     )(input)
 }
 
-pub fn parse_expression_list(input: &str) -> IResult<&str, Vec<Expr>> {
-    multi::separated_list1(
-        multi::many1(branch::alt((complete::line_ending, tag(";")))),
-        parse_expression,
+fn parse_expression_separator(input: &str) -> IResult<&str, ()> {
+    combinator::value(
+        (),
+        multi::many1_count(branch::alt((complete::line_ending, tag(";")))),
     )(input)
 }
 
+pub fn parse_expression_list(input: &str) -> IResult<&str, Vec<Expr>> {
+    multi::separated_list1(parse_expression_separator, parse_expression)(input)
+}
+
 pub fn parse_expression(input: &str) -> IResult<&str, Expr> {
-    let (input, _) = combinator::opt(parse_comment)(input)?;
+    let (input, _) = multi::many0(branch::alt((parse_comment, parse_expression_separator)))(input)?;
     branch::alt((parse_binding, parse_lambda))(input)
 }
 
@@ -108,6 +112,7 @@ fn parse_if_expr(input: &str) -> IResult<&str, Expr> {
     branch::alt((
         combinator::map(
             sequence::tuple((
+                multispace0,
                 tag("if"),
                 parse_expression,
                 multispace1,
@@ -117,7 +122,7 @@ fn parse_if_expr(input: &str) -> IResult<&str, Expr> {
                 tag("else"),
                 parse_expression,
             )),
-            |(_if, condition, _, _then, lhs, _, _else, rhs)| Expr::If {
+            |(_, _if, condition, _, _then, lhs, _, _else, rhs)| Expr::If {
                 condition: Box::new(condition),
                 true_value: Box::new(lhs),
                 false_value: Box::new(rhs),
@@ -502,6 +507,21 @@ mod tests {
                 }
             ))
         );
+        assert_eq!(
+            parse_expression("if x then y else if z then a else b"),
+            Ok((
+                "",
+                Expr::If {
+                    condition: Box::new(Expr::Identifier("x".to_string())),
+                    true_value: Box::new(Expr::Identifier("y".to_string())),
+                    false_value: Box::new(Expr::If {
+                        condition: Box::new(Expr::Identifier("z".to_string())),
+                        true_value: Box::new(Expr::Identifier("a".to_string())),
+                        false_value: Box::new(Expr::Identifier("b".to_string())),
+                    }),
+                }
+            ))
+        );
     }
 
     #[test]
@@ -547,6 +567,16 @@ mod tests {
             parse_expression("f x y = x + y"),
             parse_expression("f x y\n    = x + y")
         );
+        let (rest, expr) = parse_expression(
+            r"
+fib x = if x == 0 then 0
+   else if x == 1 then 1
+   else fib (x - 1)
+                ",
+        )
+        .unwrap();
+        assert_eq!(rest.trim(), "");
+        assert!(matches!(expr, Expr::Binding { .. }));
     }
 
     #[test]
