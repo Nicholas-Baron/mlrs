@@ -3,7 +3,7 @@ use super::syntax::*;
 use nom::{
     branch,
     bytes::complete::tag,
-    character::complete::{self, char, space0, space1},
+    character::complete::{self, char, multispace0, multispace1, space0, space1},
     combinator, multi, sequence, IResult,
 };
 
@@ -47,11 +47,11 @@ fn parse_binding(input: &str) -> IResult<&str, Expr> {
     branch::alt((
         combinator::map(
             sequence::tuple((
-                space0,
+                multispace0,
                 parse_identifier,
-                space0,
+                multispace0,
                 char('='),
-                space0,
+                multispace0,
                 parse_lambda,
             )),
             |(_, name, _, _eq, _, expr)| Expr::Binding {
@@ -61,13 +61,13 @@ fn parse_binding(input: &str) -> IResult<&str, Expr> {
         ),
         combinator::map(
             sequence::tuple((
-                space0,
+                multispace0,
                 parse_identifier,
-                space1,
-                multi::separated_list1(space1, parse_identifier),
-                space0,
+                multispace1,
+                multi::separated_list1(multispace1, parse_identifier),
+                multispace0,
                 char('='),
-                space0,
+                multispace0,
                 parse_lambda,
             )),
             |(_, name, _, args, _, _eq, _, expr)| Expr::Binding {
@@ -110,10 +110,10 @@ fn parse_if_expr(input: &str) -> IResult<&str, Expr> {
             sequence::tuple((
                 tag("if"),
                 parse_expression,
-                space1,
+                multispace1,
                 tag("then"),
                 parse_expression,
-                space1,
+                multispace1,
                 tag("else"),
                 parse_expression,
             )),
@@ -486,6 +486,14 @@ mod tests {
         assert_eq!(
             parse_expression("f x y = x + y"),
             parse_expression("f = \\x -> \\y -> x+y")
+        );
+    }
+
+    #[test]
+    fn parse_extra_newlines_test() {
+        assert_eq!(
+            parse_expression("f x y = x + y"),
+            parse_expression("f x y\n    = x + y")
         );
     }
 
