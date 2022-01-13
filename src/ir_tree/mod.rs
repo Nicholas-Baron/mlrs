@@ -31,6 +31,42 @@ pub enum IRItem {
     },
 }
 
+impl IRItem {
+    fn rewrite_id_to(&mut self, dest_id: &IRId, src_id: &IRId) {
+        match self {
+            Self::Lambda { body, .. } => {
+                if body == src_id {
+                    *body = dest_id.clone();
+                }
+            }
+            Self::Binary { lhs, rhs, .. } => {
+                if lhs == src_id {
+                    *lhs = dest_id.clone();
+                }
+                if rhs == src_id {
+                    *rhs = dest_id.clone();
+                }
+            }
+            Self::If {
+                condition,
+                true_value,
+                false_value,
+            } => {
+                if condition == src_id {
+                    *condition = dest_id.clone();
+                }
+                if true_value == src_id {
+                    *true_value = dest_id.clone();
+                }
+                if false_value == src_id {
+                    *false_value = dest_id.clone();
+                }
+            }
+            Self::Literal(_) | Self::Identifier(_) => {}
+        }
+    }
+}
+
 #[derive(Default, Debug)]
 pub struct Module {
     ir_items: HashMap<IRId, IRItem>,
@@ -86,6 +122,28 @@ impl Module {
         self.root_id = Some(id)
     }
 
+    fn rewrite_id_to(&mut self, dest_id: &IRId, src_id: &IRId) {
+        // rewriting means that we need to
+
+        // 1. "rebind" any names bound to `src_id` instead to `dest_id`
+        for scope in &mut self.name_scope {
+            for (_, id) in scope.iter_mut().filter(|(_, id)| id == &src_id) {
+                *id = dest_id.clone();
+            }
+        }
+
+        // 2. change all references of `src_id` to `dest_id` in ir_items
+        // 2a. reassign the item with the `src_id` to `dest_id`
+        if let Some(item) = self.ir_items.remove(src_id) {
+            self.ir_items.insert(dest_id.clone(), item);
+        }
+
+        // 2b. change all items from referencing `src_id` to `dest_id`
+        for (_, item) in &mut self.ir_items {
+            item.rewrite_id_to(dest_id, src_id);
+        }
+    }
+
     pub fn add_expr(&mut self, expr: &syntax::Expr) -> IRId {
         use syntax::Expr;
 
@@ -98,15 +156,19 @@ impl Module {
                 }
             }
             Expr::Binding { name, expr } => {
-                let ir_id = self.add_expr(expr);
+                // We need to allow recursive bindings.
+                // To do so, we can rewrite an id after it has been added.
+                let temp_ir_id = self.next_ir_id();
                 let scope = self.current_name_scope();
-                if let Some(old_id) = scope.insert(name.clone(), ir_id.clone()) {
+                if let Some(old_id) = scope.insert(name.clone(), temp_ir_id.clone()) {
                     eprintln!("Identifier {} was bound to {:?}, but is now bound to {:?} in the same name scope",
-                            name,old_id,ir_id
+                            name,old_id,temp_ir_id
                             );
                     eprintln!("{:?}", self);
                 }
-                return ir_id;
+                let new_ir_id = self.add_expr(expr);
+                self.rewrite_id_to(&new_ir_id, &temp_ir_id);
+                return new_ir_id;
             }
             Expr::Lambda { body, parameter } => (
                 self.next_ir_id(),
@@ -204,7 +266,7 @@ mod tests {
         };
 
         let module = Module::from_expr(&lambda);
-        assert_eq!(module.name_scope.len(), 1);
+        assert_eq!(module.name_scope.len(), 2);
         assert_ne!(module.root_id, None);
 
         let f_id = module.find_identifier(&"f".to_string());
@@ -259,5 +321,24 @@ mod tests {
         } else {
             panic!();
         }
+    }
+
+    #[test]
+    fn lowers_recursion() {
+        let x_bind = syntax::Expr::Binding {
+            name: "x".to_string(),
+            expr: Box::new(syntax::Expr::Identifier("x".to_string())),
+        };
+
+        let module = Module::from_expr(&x_bind);
+        assert_eq!(module.name_scope.len(), 1);
+        assert_ne!(module.root_id, None);
+
+        let f_id = module.find_identifier(&"f".to_string());
+        assert_eq!(f_id, None);
+        let x_id = module.find_identifier(&"x".to_string());
+        assert_ne!(x_id, None);
+
+        println!("{:?}", module);
     }
 }
