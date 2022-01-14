@@ -13,6 +13,7 @@ enum ExecValue {
     },
 }
 
+#[derive(Debug)]
 pub struct ExecContext {
     named_values: Vec<HashMap<Identifier, ExecValue>>,
     evaluation_stack: Vec<ExecValue>,
@@ -40,6 +41,7 @@ impl ExecContext {
     pub fn execute(&mut self, module: &Module) -> Option<Literal> {
         let start_id = module.root_id().cloned().unwrap();
         self.execute_id(module, &start_id);
+        assert_eq!(self.evaluation_stack.len(), 1);
         self.evaluation_stack.pop().and_then(|opt| match opt {
             ExecValue::Literal(lit) => Some(lit),
             _ => None,
@@ -95,6 +97,7 @@ impl ExecContext {
                         .last_mut()
                         .map(|map| map.insert(id, value));
                     self.execute_id(module, &body);
+                    self.named_values.pop();
                 }
             }
             IRItem::If {
@@ -148,7 +151,9 @@ impl ExecContext {
             BinaryOperation::Mult => self
                 .evaluation_stack
                 .push(ExecValue::Literal(Literal::Integer(lhs_val * rhs_val))),
-            BinaryOperation::Equality => todo!(),
+            BinaryOperation::Equality => self
+                .evaluation_stack
+                .push(ExecValue::Literal(Literal::Boolean(lhs_val == rhs_val))),
             BinaryOperation::Application => {
                 panic!("execute_op should never need to call a function")
             }
