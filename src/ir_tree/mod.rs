@@ -139,7 +139,7 @@ impl Module {
         }
 
         // 2b. change all items from referencing `src_id` to `dest_id`
-        for (_, item) in &mut self.ir_items {
+        for item in self.ir_items.values_mut() {
             item.rewrite_id_to(dest_id, src_id);
         }
     }
