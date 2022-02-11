@@ -91,7 +91,12 @@ fn parse_binding(input: &str) -> IResult<&str, Expr> {
 
 fn parse_expression(input: &str) -> IResult<&str, Expr> {
     let (input, _) = multi::many0(branch::alt((parse_comment, parse_expression_separator)))(input)?;
-    branch::alt((parse_let_expression, parse_lambda))(input)
+    branch::alt((
+        parse_let_expression,
+        parse_lambda,
+        parse_if_expr,
+        parse_equality,
+    ))(input)
 }
 
 fn parse_let_expression(input: &str) -> IResult<&str, Expr> {
@@ -122,48 +127,42 @@ fn parse_let_expression(input: &str) -> IResult<&str, Expr> {
 }
 
 fn parse_lambda(input: &str) -> IResult<&str, Expr> {
-    branch::alt((
-        combinator::map(
-            sequence::tuple((
-                space0,
-                char('\\'),
-                space0,
-                parse_identifier,
-                space0,
-                tag("->"),
-                parse_expression,
-            )),
-            |(_, _slash, _, parameter, _, _arrow, body)| Expr::Lambda {
-                parameter,
-                body: Box::new(body),
-            },
-        ),
-        parse_if_expr,
-    ))(input)
+    combinator::map(
+        sequence::tuple((
+            space0,
+            char('\\'),
+            space0,
+            parse_identifier,
+            space0,
+            tag("->"),
+            parse_expression,
+        )),
+        |(_, _slash, _, parameter, _, _arrow, body)| Expr::Lambda {
+            parameter,
+            body: Box::new(body),
+        },
+    )(input)
 }
 
 fn parse_if_expr(input: &str) -> IResult<&str, Expr> {
-    branch::alt((
-        combinator::map(
-            sequence::tuple((
-                multispace0,
-                tag("if"),
-                parse_expression,
-                multispace1,
-                tag("then"),
-                parse_expression,
-                multispace1,
-                tag("else"),
-                parse_expression,
-            )),
-            |(_, _if, condition, _, _then, lhs, _, _else, rhs)| Expr::If {
-                condition: Box::new(condition),
-                true_value: Box::new(lhs),
-                false_value: Box::new(rhs),
-            },
-        ),
-        parse_equality,
-    ))(input)
+    combinator::map(
+        sequence::tuple((
+            multispace0,
+            tag("if"),
+            parse_expression,
+            multispace1,
+            tag("then"),
+            parse_expression,
+            multispace1,
+            tag("else"),
+            parse_expression,
+        )),
+        |(_, _if, condition, _, _then, lhs, _, _else, rhs)| Expr::If {
+            condition: Box::new(condition),
+            true_value: Box::new(lhs),
+            false_value: Box::new(rhs),
+        },
+    )(input)
 }
 
 fn parse_equality(input: &str) -> IResult<&str, Expr> {
