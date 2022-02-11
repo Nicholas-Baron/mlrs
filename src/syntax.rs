@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fmt::{self, Display};
 
 pub type Identifier = String;
@@ -29,6 +30,10 @@ pub enum Expr {
         condition: Box<Expr>,
         true_value: Box<Expr>,
         false_value: Box<Expr>,
+    },
+    Let {
+        bound_values: HashMap<Identifier, Expr>,
+        inner_expr: Box<Expr>,
     },
 }
 

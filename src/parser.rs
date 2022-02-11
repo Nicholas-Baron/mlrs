@@ -14,7 +14,9 @@ fn parse_identifier(input: &str) -> IResult<&str, String> {
             format!("{}{}", first, second)
         }),
         |id: &String| {
-            let reserved = ["if", "then", "else", "true", "True", "false", "False"];
+            let reserved = [
+                "if", "then", "else", "true", "True", "false", "False", "let", "in",
+            ];
             !reserved.into_iter().any(|kw| kw == id)
         },
     )(input)
@@ -89,7 +91,34 @@ fn parse_binding(input: &str) -> IResult<&str, Expr> {
 
 fn parse_expression(input: &str) -> IResult<&str, Expr> {
     let (input, _) = multi::many0(branch::alt((parse_comment, parse_expression_separator)))(input)?;
-    parse_lambda(input)
+    branch::alt((parse_let_expression, parse_lambda))(input)
+}
+
+fn parse_let_expression(input: &str) -> IResult<&str, Expr> {
+    combinator::map(
+        sequence::tuple((
+            tag("let"),
+            space1,
+            parse_identifier,
+            space0,
+            char('='),
+            space0,
+            parse_expression,
+            space1,
+            tag("in"),
+            space1,
+            parse_expression,
+        )),
+        |(_let, _, id, _, _eq, _, value, _, _in, _, expr)| {
+            use std::collections::HashMap;
+            let mut bound_values = HashMap::new();
+            bound_values.insert(id, value);
+            Expr::Let {
+                bound_values,
+                inner_expr: Box::new(expr),
+            }
+        },
+    )(input)
 }
 
 fn parse_lambda(input: &str) -> IResult<&str, Expr> {
@@ -594,6 +623,24 @@ fib x = if x == 0 then 0
                     op: BinaryOperation::Equality,
                     lhs: Box::new(Expr::Identifier("x".to_string())),
                     rhs: Box::new(Expr::Literal(Literal::Integer(0)))
+                }
+            ))
+        );
+    }
+
+    #[test]
+    fn parse_let_test() {
+        use std::collections::HashMap;
+        let mut bound_values = HashMap::new();
+        bound_values.insert("x".to_string(), Expr::Literal(Literal::Integer(5)));
+
+        assert_eq!(
+            parse_expression("let x = 5 in x"),
+            Ok((
+                "",
+                Expr::Let {
+                    bound_values,
+                    inner_expr: Box::new(Expr::Identifier("x".to_string()))
                 }
             ))
         );

@@ -206,6 +206,7 @@ impl Module {
                     false_value: self.add_expr(false_value),
                 },
             ),
+            Expr::Let { .. } => todo!(),
         };
         self.ir_items.insert(expr_id.clone(), ir_expr);
         expr_id
