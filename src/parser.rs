@@ -44,7 +44,7 @@ pub fn parse_expression_binding_list(input: &str) -> IResult<&str, Vec<Expr>> {
 
 pub fn parse_expression_binding(input: &str) -> IResult<&str, Expr> {
     let (input, _) = multi::many0(branch::alt((parse_comment, parse_expression_separator)))(input)?;
-    branch::alt((parse_binding, parse_lambda))(input)
+    branch::alt((parse_binding, parse_expression))(input)
 }
 
 fn parse_binding(input: &str) -> IResult<&str, Expr> {
@@ -56,7 +56,7 @@ fn parse_binding(input: &str) -> IResult<&str, Expr> {
                 multispace0,
                 char('='),
                 multispace0,
-                parse_lambda,
+                parse_expression,
             )),
             |(_, name, _, _eq, _, expr)| Expr::Binding {
                 name,
@@ -72,7 +72,7 @@ fn parse_binding(input: &str) -> IResult<&str, Expr> {
                 multispace0,
                 char('='),
                 multispace0,
-                parse_lambda,
+                parse_expression,
             )),
             |(_, name, _, args, _, _eq, _, expr)| Expr::Binding {
                 name,
