@@ -245,15 +245,15 @@ fn parse_multiplication(input: &str) -> IResult<&str, Expr> {
 fn parse_application(input: &str) -> IResult<&str, Expr> {
     let (_, next_primary) = combinator::peek(parse_primary_expr)(input)?;
 
-    let could_be_application = match next_primary {
+    let could_be_application = matches!(
+        next_primary,
         Expr::Identifier(_)
-        | Expr::Binary {
-            op: BinaryOperation::Application,
-            ..
-        }
-        | Expr::Lambda { .. } => true,
-        _ => false,
-    };
+            | Expr::Binary {
+                op: BinaryOperation::Application,
+                ..
+            }
+            | Expr::Lambda { .. }
+    );
 
     if could_be_application {
         combinator::map(
