@@ -36,7 +36,10 @@ fn parse_comment(input: &str) -> IResult<&str, ()> {
 fn parse_expression_separator(input: &str) -> IResult<&str, ()> {
     combinator::value(
         (),
-        multi::many1_count(branch::alt((complete::line_ending, tag(";")))),
+        multi::many1_count(sequence::preceded(
+            space0,
+            branch::alt((complete::line_ending, tag(";"))),
+        )),
     )(input)
 }
 
@@ -90,7 +93,11 @@ fn parse_binding(input: &str) -> IResult<&str, Expr> {
 }
 
 fn parse_expression(input: &str) -> IResult<&str, Expr> {
-    let (input, _) = multi::many0(branch::alt((parse_comment, parse_expression_separator)))(input)?;
+    let (input, _) = multi::many0(branch::alt((
+        parse_comment,
+        parse_expression_separator,
+        combinator::value((), multispace1),
+    )))(input)?;
     branch::alt((
         parse_let_expression,
         parse_lambda,
@@ -100,28 +107,35 @@ fn parse_expression(input: &str) -> IResult<&str, Expr> {
 }
 
 fn parse_let_expression(input: &str) -> IResult<&str, Expr> {
+    // TODO: Permit function declarations in `let`
+    let bindings = multi::separated_list0(
+        multi::many1(parse_expression_separator),
+        combinator::map(
+            sequence::tuple((
+                space0,
+                parse_identifier,
+                space0,
+                char('='),
+                space0,
+                parse_expression,
+            )),
+            |(_, id, _, _eq, _, expr)| (id, expr),
+        ),
+    );
+
     combinator::map(
         sequence::tuple((
             tag("let"),
-            space1,
-            parse_identifier,
-            space0,
-            char('='),
-            space0,
-            parse_expression,
-            space1,
+            multispace1,
+            bindings,
+            multispace1,
             tag("in"),
             space1,
             parse_expression,
         )),
-        |(_let, _, id, _, _eq, _, value, _, _in, _, expr)| {
-            use std::collections::HashMap;
-            let mut bound_values = HashMap::new();
-            bound_values.insert(id, value);
-            Expr::Let {
-                bound_values,
-                inner_expr: Box::new(expr),
-            }
+        |(_let, _, bindings, _, _in, _, expr)| Expr::Let {
+            bound_values: bindings.into_iter().collect(),
+            inner_expr: Box::new(expr),
         },
     )(input)
 }
@@ -229,19 +243,35 @@ fn parse_multiplication(input: &str) -> IResult<&str, Expr> {
 }
 
 fn parse_application(input: &str) -> IResult<&str, Expr> {
-    combinator::map(
-        multi::separated_list1(space1, parse_primary_expr),
-        |exprs| {
-            exprs
-                .into_iter()
-                .reduce(|lhs, rhs| Expr::Binary {
-                    op: BinaryOperation::Application,
-                    lhs: Box::new(lhs),
-                    rhs: Box::new(rhs),
-                })
-                .expect("separated_list1 should always give at least 1 item")
-        },
-    )(input)
+    let (_, next_primary) = combinator::peek(parse_primary_expr)(input)?;
+
+    let could_be_application = match next_primary {
+        Expr::Identifier(_)
+        | Expr::Binary {
+            op: BinaryOperation::Application,
+            ..
+        }
+        | Expr::Lambda { .. } => true,
+        _ => false,
+    };
+
+    if could_be_application {
+        combinator::map(
+            multi::separated_list1(space1, parse_primary_expr),
+            |exprs| {
+                exprs
+                    .into_iter()
+                    .reduce(|lhs, rhs| Expr::Binary {
+                        op: BinaryOperation::Application,
+                        lhs: Box::new(lhs),
+                        rhs: Box::new(rhs),
+                    })
+                    .expect("separated_list1 should always give at least 1 item")
+            },
+        )(input)
+    } else {
+        parse_primary_expr(input)
+    }
 }
 
 fn parse_primary_expr(input: &str) -> IResult<&str, Expr> {
@@ -347,6 +377,7 @@ mod tests {
                 }
             ))
         );
+        assert!(matches!(parse_expression("5 x"), Ok((" x", _))));
     }
 
     #[test]
@@ -574,7 +605,6 @@ mod tests {
     fn parse_expressions_test() {
         let (rest, exprs) =
             parse_expression_binding_list("f x y = x + y\n\n double x = x * 2").unwrap();
-        eprintln!("unparsed: '{}'", rest);
         assert_eq!(rest.len(), 0);
         assert_eq!(exprs.len(), 2);
     }
@@ -640,6 +670,30 @@ fib x = if x == 0 then 0
                 Expr::Let {
                     bound_values,
                     inner_expr: Box::new(Expr::Identifier("x".to_string()))
+                }
+            ))
+        );
+
+        let mut bound_values = HashMap::new();
+        bound_values.insert("x".to_string(), Expr::Literal(Literal::Integer(5)));
+        bound_values.insert("y".to_string(), Expr::Literal(Literal::Integer(10)));
+
+        assert_eq!(
+            parse_expression(
+                r#"
+            let x = 5 ;
+                y = 10 
+            in x + y"#
+            ),
+            Ok((
+                "",
+                Expr::Let {
+                    bound_values,
+                    inner_expr: Box::new(Expr::Binary {
+                        lhs: Box::new(Expr::Identifier("x".to_string())),
+                        op: BinaryOperation::Plus,
+                        rhs: Box::new(Expr::Identifier("y".to_string())),
+                    })
                 }
             ))
         );
