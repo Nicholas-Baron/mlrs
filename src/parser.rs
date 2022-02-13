@@ -146,14 +146,19 @@ fn parse_lambda(input: &str) -> IResult<&str, Expr> {
             space0,
             char('\\'),
             space0,
-            parse_identifier,
+            multi::separated_list1(space1, parse_identifier),
             space0,
             tag("->"),
             parse_expression,
         )),
-        |(_, _slash, _, parameter, _, _arrow, body)| Expr::Lambda {
-            parameter,
-            body: Box::new(body),
+        |(_, _slash, _, parameters, _, _arrow, body)| {
+            parameters
+                .into_iter()
+                .rev()
+                .fold(body, |body, parameter| Expr::Lambda {
+                    parameter,
+                    body: Box::new(body),
+                })
         },
     )(input)
 }
@@ -596,6 +601,31 @@ mod tests {
                 Expr::Binding {
                     name: "x".to_string(),
                     expr: Box::new(Expr::Literal(Literal::Integer(5)))
+                }
+            ))
+        );
+
+        assert_eq!(
+            parse_expression_binding("x = (\\ a b -> a + b) 5"),
+            Ok((
+                "",
+                Expr::Binding {
+                    name: "x".to_string(),
+                    expr: Box::new(Expr::Binary {
+                        op: BinaryOperation::Application,
+                        rhs: Box::new(Expr::Literal(Literal::Integer(5))),
+                        lhs: Box::new(Expr::Lambda {
+                            parameter: "a".to_string(),
+                            body: Box::new(Expr::Lambda {
+                                parameter: "b".to_string(),
+                                body: Box::new(Expr::Binary {
+                                    op: BinaryOperation::Plus,
+                                    lhs: Box::new(Expr::Identifier("a".to_string())),
+                                    rhs: Box::new(Expr::Identifier("b".to_string())),
+                                }),
+                            }),
+                        }),
+                    })
                 }
             ))
         );
