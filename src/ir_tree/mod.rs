@@ -80,6 +80,7 @@ impl Module {
         Self::default()
     }
 
+    #[cfg(test)]
     pub fn from_expr(expr: &syntax::Expr) -> Self {
         let mut module = Self::new();
         let root_id = module.add_expr(expr);
