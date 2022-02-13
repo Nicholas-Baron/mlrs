@@ -88,6 +88,15 @@ impl Module {
         module
     }
 
+    #[cfg(test)]
+    pub fn from_decls(decls: &[syntax::Declaration]) -> Self {
+        let mut module = Self::new();
+        for decl in decls {
+            module.root_id = Some(module.add_decl(decl));
+        }
+        module
+    }
+
     /// Add a fresh name scope, returning it for convenience.
     fn add_new_name_scope(&mut self) -> &mut HashMap<Identifier, IRId> {
         self.name_scope.push(Default::default());
@@ -145,6 +154,29 @@ impl Module {
         }
     }
 
+    pub fn add_decls(&mut self, decls: &[syntax::Declaration]) -> Vec<IRId> {
+        decls.iter().map(|decl| self.add_decl(decl)).collect()
+    }
+
+    pub fn add_decl(&mut self, decl: &syntax::Declaration) -> IRId {
+        let syntax::Declaration { name, expr } = decl;
+
+        // We need to allow recursive bindings.
+        // To do so, we can rewrite an id after it has been added.
+        let temp_ir_id = self.next_ir_id();
+        let scope = self.current_name_scope();
+        if let Some(old_id) = scope.insert(name.clone(), temp_ir_id.clone()) {
+            eprintln!(
+                "Identifier {} was bound to {:?}, but is now bound to {:?} in the same name scope",
+                name, old_id, temp_ir_id
+            );
+            eprintln!("{:?}", self);
+        }
+        let new_ir_id = self.add_expr(expr);
+        self.rewrite_id_to(&new_ir_id, &temp_ir_id);
+        new_ir_id
+    }
+
     pub fn add_expr(&mut self, expr: &syntax::Expr) -> IRId {
         use syntax::Expr;
 
@@ -155,21 +187,6 @@ impl Module {
                     Some(id) => id,
                     None => panic!("Could not find identifier '{}' in module {:?}", ident, self),
                 }
-            }
-            Expr::Binding { name, expr } => {
-                // We need to allow recursive bindings.
-                // To do so, we can rewrite an id after it has been added.
-                let temp_ir_id = self.next_ir_id();
-                let scope = self.current_name_scope();
-                if let Some(old_id) = scope.insert(name.clone(), temp_ir_id.clone()) {
-                    eprintln!("Identifier {} was bound to {:?}, but is now bound to {:?} in the same name scope",
-                            name,old_id,temp_ir_id
-                            );
-                    eprintln!("{:?}", self);
-                }
-                let new_ir_id = self.add_expr(expr);
-                self.rewrite_id_to(&new_ir_id, &temp_ir_id);
-                return new_ir_id;
             }
             Expr::Lambda { body, parameter } => (
                 self.next_ir_id(),
@@ -213,7 +230,7 @@ impl Module {
             } => {
                 let bound_names: HashMap<String, _> = bound_values
                     .iter()
-                    .map(|(id, expr)| (id.clone(), self.add_expr(expr)))
+                    .map(|decl| (decl.name.clone(), self.add_decl(decl)))
                     .collect();
                 let name_scope = self.add_new_name_scope();
                 *name_scope = bound_names;
@@ -270,7 +287,7 @@ mod tests {
 
     #[test]
     fn lowers_binding() {
-        let lambda = syntax::Expr::Binding {
+        let lambda = syntax::Declaration {
             name: "f".to_string(),
             expr: Box::new(syntax::Expr::Lambda {
                 parameter: "x".to_string(),
@@ -278,7 +295,7 @@ mod tests {
             }),
         };
 
-        let module = Module::from_expr(&lambda);
+        let module = Module::from_decls(&[lambda]);
         assert_eq!(module.name_scope.len(), 2);
         assert_ne!(module.root_id, None);
 
@@ -305,12 +322,12 @@ mod tests {
 
     #[test]
     fn lowers_multiple() {
-        let x_bind = syntax::Expr::Binding {
+        let x_bind = syntax::Declaration {
             name: "x".to_string(),
             expr: Box::new(syntax::Expr::Literal(Literal::Integer(5))),
         };
 
-        let mut module = Module::from_expr(&x_bind);
+        let mut module = Module::from_decls(&[x_bind]);
         assert_eq!(module.name_scope.len(), 1);
         assert_ne!(module.root_id, None);
 
@@ -338,12 +355,12 @@ mod tests {
 
     #[test]
     fn lowers_recursion() {
-        let x_bind = syntax::Expr::Binding {
+        let x_bind = syntax::Declaration {
             name: "x".to_string(),
             expr: Box::new(syntax::Expr::Identifier("x".to_string())),
         };
 
-        let module = Module::from_expr(&x_bind);
+        let module = Module::from_decls(&[x_bind]);
         assert_eq!(module.name_scope.len(), 1);
         assert_ne!(module.root_id, None);
 

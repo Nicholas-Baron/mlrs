@@ -8,7 +8,8 @@ use nom::{
 };
 
 mod expression;
-use expression::{parse_expression, parse_expression_separator};
+pub use expression::parse_expression;
+use expression::parse_expression_separator;
 
 fn parse_identifier(input: &str) -> IResult<&str, String> {
     use complete::{alpha1, alphanumeric0};
@@ -36,16 +37,11 @@ fn parse_comment(input: &str) -> IResult<&str, ()> {
     )(input)
 }
 
-pub fn parse_expression_binding_list(input: &str) -> IResult<&str, Vec<Expr>> {
-    multi::separated_list1(parse_expression_separator, parse_expression_binding)(input)
+pub fn parse_declaration_list(input: &str) -> IResult<&str, Vec<Declaration>> {
+    multi::separated_list0(multi::many1(parse_expression_separator), parse_declaration)(input)
 }
 
-pub fn parse_expression_binding(input: &str) -> IResult<&str, Expr> {
-    let (input, _) = multi::many0(branch::alt((parse_comment, parse_expression_separator)))(input)?;
-    branch::alt((parse_binding, parse_expression))(input)
-}
-
-fn parse_binding(input: &str) -> IResult<&str, Expr> {
+pub fn parse_declaration(input: &str) -> IResult<&str, Declaration> {
     branch::alt((
         combinator::map(
             sequence::tuple((
@@ -56,7 +52,7 @@ fn parse_binding(input: &str) -> IResult<&str, Expr> {
                 multispace0,
                 parse_expression,
             )),
-            |(_, name, _, _eq, _, expr)| Expr::Binding {
+            |(_, name, _, _eq, _, expr)| Declaration {
                 name,
                 expr: Box::new(expr),
             },
@@ -72,7 +68,7 @@ fn parse_binding(input: &str) -> IResult<&str, Expr> {
                 multispace0,
                 parse_expression,
             )),
-            |(_, name, _, args, _, _eq, _, expr)| Expr::Binding {
+            |(_, name, _, args, _, _eq, _, expr)| Declaration {
                 name,
                 expr: args.into_iter().rev().fold(Box::new(expr), |body, arg| {
                     Box::new(Expr::Lambda {
@@ -99,10 +95,10 @@ mod tests {
     #[test]
     fn parse_binding_test() {
         assert_eq!(
-            parse_expression_binding("x = 5"),
+            parse_declaration("x = 5"),
             Ok((
                 "",
-                Expr::Binding {
+                Declaration {
                     name: "x".to_string(),
                     expr: Box::new(Expr::Literal(Literal::Integer(5)))
                 }
@@ -110,10 +106,10 @@ mod tests {
         );
 
         assert_eq!(
-            parse_expression_binding("x = (\\ a b -> a + b) 5"),
+            parse_declaration("x = (\\ a b -> a + b) 5"),
             Ok((
                 "",
-                Expr::Binding {
+                Declaration {
                     name: "x".to_string(),
                     expr: Box::new(Expr::Binary {
                         op: BinaryOperation::Application,
@@ -137,8 +133,7 @@ mod tests {
 
     #[test]
     fn parse_expressions_test() {
-        let (rest, exprs) =
-            parse_expression_binding_list("f x y = x + y\n\n double x = x * 2").unwrap();
+        let (rest, exprs) = parse_declaration_list("f x y = x + y\n\n double x = x * 2").unwrap();
         assert_eq!(rest.len(), 0);
         assert_eq!(exprs.len(), 2);
     }
@@ -153,18 +148,18 @@ mod tests {
     #[test]
     fn parse_function_binding_test() {
         assert_eq!(
-            parse_expression_binding("f x y = x + y"),
-            parse_expression_binding("f = \\x -> \\y -> x+y")
+            parse_declaration("f x y = x + y"),
+            parse_declaration("f = \\x -> \\y -> x+y")
         );
     }
 
     #[test]
     fn parse_extra_newlines_test() {
         assert_eq!(
-            parse_expression_binding("f x y = x + y"),
-            parse_expression_binding("f x y\n    = x + y")
+            parse_declaration("f x y = x + y"),
+            parse_declaration("f x y\n    = x + y")
         );
-        let (rest, expr) = parse_expression_binding(
+        let (rest, decl) = parse_declaration(
             r"
 fib x = if x == 0 then 0
    else if x == 1 then 1
@@ -173,29 +168,24 @@ fib x = if x == 0 then 0
         )
         .unwrap();
         assert_eq!(rest.trim(), "");
-        assert!(matches!(expr, Expr::Binding { .. }));
+        assert!(matches!(decl, Declaration { .. }));
     }
 
     #[test]
     fn parse_let_test() {
-        use std::collections::HashMap;
-        let mut bound_values = HashMap::new();
-        bound_values.insert("x".to_string(), Expr::Literal(Literal::Integer(5)));
-
         assert_eq!(
             parse_expression("let x = 5 in x"),
             Ok((
                 "",
                 Expr::Let {
-                    bound_values,
+                    bound_values: vec![Declaration {
+                        name: "x".to_string(),
+                        expr: Box::new(Expr::Literal(Literal::Integer(5)))
+                    }],
                     inner_expr: Box::new(Expr::Identifier("x".to_string()))
                 }
             ))
         );
-
-        let mut bound_values = HashMap::new();
-        bound_values.insert("x".to_string(), Expr::Literal(Literal::Integer(5)));
-        bound_values.insert("y".to_string(), Expr::Literal(Literal::Integer(10)));
 
         assert_eq!(
             parse_expression(
@@ -207,7 +197,16 @@ fib x = if x == 0 then 0
             Ok((
                 "",
                 Expr::Let {
-                    bound_values,
+                    bound_values: vec![
+                        Declaration {
+                            name: "x".to_string(),
+                            expr: Box::new(Expr::Literal(Literal::Integer(5)))
+                        },
+                        Declaration {
+                            name: "y".to_string(),
+                            expr: Box::new(Expr::Literal(Literal::Integer(10)))
+                        },
+                    ],
                     inner_expr: Box::new(Expr::Binary {
                         lhs: Box::new(Expr::Identifier("x".to_string())),
                         op: BinaryOperation::Plus,

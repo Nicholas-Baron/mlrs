@@ -1,22 +1,23 @@
-use std::collections::HashMap;
 use std::fmt::{self, Display};
 
 pub type Identifier = String;
+
+/// This denotes a binding of some expression to a name.
+/// ```
+/// x = 5
+/// f = \x -> \y -> x + y
+/// ```
+#[derive(Debug, PartialEq)]
+pub struct Declaration {
+    pub name: Identifier,
+    pub expr: Box<Expr>,
+}
 
 /// All expressions
 #[derive(PartialEq, Debug)]
 pub enum Expr {
     Literal(Literal),
     Identifier(Identifier),
-    /// This denotes a binding of some expression to a name.
-    /// ```
-    /// x = 5
-    /// f = \x -> \y -> x + y
-    /// ```
-    Binding {
-        name: Identifier,
-        expr: Box<Expr>,
-    },
     Lambda {
         parameter: Identifier,
         body: Box<Expr>,
@@ -32,7 +33,7 @@ pub enum Expr {
         false_value: Box<Expr>,
     },
     Let {
-        bound_values: HashMap<Identifier, Expr>,
+        bound_values: Vec<Declaration>,
         inner_expr: Box<Expr>,
     },
 }

@@ -17,7 +17,7 @@ pub(super) fn parse_expression_separator(input: &str) -> IResult<&str, ()> {
     )(input)
 }
 
-pub(super) fn parse_expression(input: &str) -> IResult<&str, Expr> {
+pub fn parse_expression(input: &str) -> IResult<&str, Expr> {
     let (input, _) = multi::many0(branch::alt((
         parse_comment,
         parse_expression_separator,
@@ -32,34 +32,18 @@ pub(super) fn parse_expression(input: &str) -> IResult<&str, Expr> {
 }
 
 fn parse_let_expression(input: &str) -> IResult<&str, Expr> {
-    // TODO: Permit function declarations in `let`
-    let bindings = multi::separated_list0(
-        multi::many1(parse_expression_separator),
-        combinator::map(
-            sequence::tuple((
-                space0,
-                parse_identifier,
-                space0,
-                char('='),
-                space0,
-                parse_expression,
-            )),
-            |(_, id, _, _eq, _, expr)| (id, expr),
-        ),
-    );
-
     combinator::map(
         sequence::tuple((
             tag("let"),
             multispace1,
-            bindings,
+            super::parse_declaration_list,
             multispace1,
             tag("in"),
             space1,
             parse_expression,
         )),
         |(_let, _, bindings, _, _in, _, expr)| Expr::Let {
-            bound_values: bindings.into_iter().collect(),
+            bound_values: bindings,
             inner_expr: Box::new(expr),
         },
     )(input)
