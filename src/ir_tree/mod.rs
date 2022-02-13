@@ -206,7 +206,18 @@ impl Module {
                     false_value: self.add_expr(false_value),
                 },
             ),
-            Expr::Let { .. } => todo!(),
+            Expr::Let {
+                bound_values,
+                inner_expr,
+            } => {
+                let bound_names: HashMap<String, _> = bound_values
+                    .iter()
+                    .map(|(id, expr)| (id.clone(), self.add_expr(expr)))
+                    .collect();
+                let name_scope = self.add_new_name_scope();
+                *name_scope = bound_names;
+                return self.add_expr(inner_expr);
+            }
         };
         self.ir_items.insert(expr_id.clone(), ir_expr);
         expr_id
