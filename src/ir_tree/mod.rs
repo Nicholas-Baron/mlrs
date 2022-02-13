@@ -165,13 +165,7 @@ impl Module {
         // To do so, we can rewrite an id after it has been added.
         let temp_ir_id = self.next_ir_id();
         let scope = self.current_name_scope();
-        if let Some(old_id) = scope.insert(name.clone(), temp_ir_id.clone()) {
-            eprintln!(
-                "Identifier {} was bound to {:?}, but is now bound to {:?} in the same name scope",
-                name, old_id, temp_ir_id
-            );
-            eprintln!("{:?}", self);
-        }
+        scope.insert(name.clone(), temp_ir_id.clone());
         let new_ir_id = self.add_expr(expr);
         self.rewrite_id_to(&new_ir_id, &temp_ir_id);
         new_ir_id
