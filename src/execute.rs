@@ -7,10 +7,6 @@ use std::collections::HashMap;
 enum ExecValue {
     Literal(Literal),
     Identifier(Identifier),
-    Closure {
-        lambda: IRId,
-        bound_values: HashMap<Identifier, ExecValue>,
-    },
 }
 
 #[derive(Debug)]
@@ -28,20 +24,9 @@ impl ExecContext {
         }
     }
 
-    fn current_bindings(&self) -> HashMap<Identifier, ExecValue> {
-        let mut result = HashMap::default();
-
-        for scope in &self.named_values {
-            result.extend(scope.clone());
-        }
-
-        result
-    }
-
     pub fn execute(&mut self, module: &Module) -> Option<Literal> {
         let start_id = module.root_id().cloned().unwrap();
         self.execute_id(module, &start_id);
-        assert_eq!(self.evaluation_stack.len(), 1);
         self.evaluation_stack.pop().and_then(|opt| match opt {
             ExecValue::Literal(lit) => Some(lit),
             _ => None,
@@ -79,12 +64,7 @@ impl ExecContext {
                 }
             },
             IRItem::Lambda { parameter, body } => {
-                if self.evaluation_stack.is_empty() {
-                    self.evaluation_stack.push(ExecValue::Closure {
-                        lambda: id.clone(),
-                        bound_values: self.current_bindings(),
-                    });
-                } else {
+                if !self.evaluation_stack.is_empty() {
                     self.named_values.push(HashMap::default());
                     self.execute_id(module, &parameter);
                     let id = if let Some(ExecValue::Identifier(id)) = self.evaluation_stack.pop() {
@@ -123,7 +103,6 @@ impl ExecContext {
                 Literal::Boolean(val) => *val,
             },
             ExecValue::Identifier(id) => self.unpack_exec_bool(self.find_value(id).unwrap()),
-            ExecValue::Closure { .. } => panic!(),
         }
     }
 
@@ -134,7 +113,6 @@ impl ExecContext {
                 Literal::Boolean(_) => panic!(),
             },
             ExecValue::Identifier(id) => self.unpack_exec_int(self.find_value(id).unwrap()),
-            ExecValue::Closure { .. } => panic!(),
         }
     }
 
