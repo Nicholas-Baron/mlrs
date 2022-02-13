@@ -7,10 +7,6 @@ use std::collections::HashMap;
 enum ExecValue {
     Literal(Literal),
     Identifier(Identifier),
-    Closure {
-        lambda: IRId,
-        bound_values: HashMap<Identifier, ExecValue>,
-    },
 }
 
 #[derive(Debug)]
@@ -26,16 +22,6 @@ impl ExecContext {
             named_values: vec![],
             evaluation_stack: vec![],
         }
-    }
-
-    fn current_bindings(&self) -> HashMap<Identifier, ExecValue> {
-        let mut result = HashMap::default();
-
-        for scope in &self.named_values {
-            result.extend(scope.clone());
-        }
-
-        result
     }
 
     pub fn execute(&mut self, module: &Module) -> Option<Literal> {
@@ -79,26 +65,20 @@ impl ExecContext {
                 }
             },
             IRItem::Lambda { parameter, body } => {
-                if self.evaluation_stack.is_empty() {
-                    self.evaluation_stack.push(ExecValue::Closure {
-                        lambda: id.clone(),
-                        bound_values: self.current_bindings(),
-                    });
+                assert!(!self.evaluation_stack.is_empty());
+                self.named_values.push(HashMap::default());
+                self.execute_id(module, &parameter);
+                let id = if let Some(ExecValue::Identifier(id)) = self.evaluation_stack.pop() {
+                    id
                 } else {
-                    self.named_values.push(HashMap::default());
-                    self.execute_id(module, &parameter);
-                    let id = if let Some(ExecValue::Identifier(id)) = self.evaluation_stack.pop() {
-                        id
-                    } else {
-                        panic!()
-                    };
-                    let value = self.evaluation_stack.pop().unwrap();
-                    self.named_values
-                        .last_mut()
-                        .map(|map| map.insert(id, value));
-                    self.execute_id(module, &body);
-                    self.named_values.pop();
-                }
+                    panic!()
+                };
+                let value = self.evaluation_stack.pop().unwrap();
+                self.named_values
+                    .last_mut()
+                    .map(|map| map.insert(id, value));
+                self.execute_id(module, &body);
+                self.named_values.pop();
             }
             IRItem::If {
                 condition,
@@ -123,7 +103,6 @@ impl ExecContext {
                 Literal::Boolean(val) => *val,
             },
             ExecValue::Identifier(id) => self.unpack_exec_bool(self.find_value(id).unwrap()),
-            ExecValue::Closure { .. } => panic!(),
         }
     }
 
@@ -134,7 +113,6 @@ impl ExecContext {
                 Literal::Boolean(_) => panic!(),
             },
             ExecValue::Identifier(id) => self.unpack_exec_int(self.find_value(id).unwrap()),
-            ExecValue::Closure { .. } => panic!(),
         }
     }
 
