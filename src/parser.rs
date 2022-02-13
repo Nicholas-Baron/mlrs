@@ -37,6 +37,19 @@ fn parse_comment(input: &str) -> IResult<&str, ()> {
     )(input)
 }
 
+#[derive(Debug)]
+pub enum DeclOrExpr {
+    Decl(Declaration),
+    Expr(Expr),
+}
+
+pub fn parse_decl_or_expr(input: &str) -> IResult<&str, DeclOrExpr> {
+    branch::alt((
+        combinator::map(parse_declaration, |decl| DeclOrExpr::Decl(decl)),
+        combinator::map(parse_expression, |expr| DeclOrExpr::Expr(expr)),
+    ))(input)
+}
+
 pub fn parse_declaration_list(input: &str) -> IResult<&str, Vec<Declaration>> {
     multi::separated_list0(multi::many1(parse_expression_separator), parse_declaration)(input)
 }

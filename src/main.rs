@@ -57,13 +57,13 @@ fn main() {
         }
 
         // TODO: Allow stdin decls
-        let expr = match parser::parse_expression(&line) {
-            Ok((remaining, expr)) => {
+        let decl_or_expr = match parser::parse_decl_or_expr(&line) {
+            Ok((remaining, item)) => {
                 if opts.debug {
-                    println!("{:?} (remaining: {:?})", expr, remaining);
+                    println!("{:?} (remaining: {:?})", item, remaining);
                 }
                 line.clear();
-                expr
+                item
             }
             Err(e) => {
                 eprintln!("{}", e);
@@ -72,7 +72,10 @@ fn main() {
             }
         };
 
-        let new_root = ir_mod.add_expr(&expr);
+        let new_root = match decl_or_expr {
+            parser::DeclOrExpr::Expr(expr) => ir_mod.add_expr(&expr),
+            parser::DeclOrExpr::Decl(decl) => ir_mod.add_decl(&decl),
+        };
         ir_mod.set_root(new_root);
 
         let result = exec_context.execute(&ir_mod);
