@@ -3,138 +3,114 @@ use crate::syntax::{BinaryOperation, Identifier, Literal};
 
 use std::collections::HashMap;
 
+type Environment = HashMap<IRId, Expr>;
+
 #[derive(Debug, Clone)]
-enum ExecValue {
+pub enum Expr {
     Literal(Literal),
     Identifier(Identifier),
+    Suspend((IRId, HashMap<IRId, Expr>)),
+    Closure {
+        parameter: IRId,
+        body: IRId,
+        environment: Environment,
+    },
 }
 
-#[derive(Debug)]
-pub struct ExecContext {
-    named_values: Vec<HashMap<Identifier, ExecValue>>,
-    evaluation_stack: Vec<ExecValue>,
+pub fn execute(module: &Module) -> Option<Literal> {
+    let start_id = module.root_id().cloned().unwrap();
+    let environment = Environment::default();
+    match eval(module, start_id, &environment) {
+        Expr::Literal(exp) => Some(exp),
+        _ => None,
+    }
 }
 
-impl ExecContext {
-    // TODO: use `Default`
-    pub fn new() -> Self {
-        Self {
-            named_values: vec![],
-            evaluation_stack: vec![],
-        }
+fn eval(module: &Module, id: IRId, environment: &Environment) -> Expr {
+    if let Some(exp) = environment.get(&id).cloned() {
+        return exp;
     }
 
-    pub fn execute(&mut self, module: &Module) -> Option<Literal> {
-        let start_id = module.root_id().cloned().unwrap();
-        self.execute_id(module, &start_id);
-        self.evaluation_stack.pop().and_then(|opt| match opt {
-            ExecValue::Literal(lit) => Some(lit),
-            _ => None,
-        })
-    }
-
-    fn find_value(&self, name: &Identifier) -> Option<&ExecValue> {
-        self.named_values.iter().rev().find_map(|map| map.get(name))
-    }
-
-    fn execute_id(&mut self, module: &Module, id: &IRId) {
-        let ir_item = module.get_item(id).cloned();
-        match ir_item.unwrap() {
-            IRItem::Literal(l) => self.evaluation_stack.push(ExecValue::Literal(l)),
-            IRItem::Identifier(id) => self.evaluation_stack.push(ExecValue::Identifier(id)),
-            IRItem::Binary { lhs, rhs, op } => match op {
-                BinaryOperation::Mult
-                | BinaryOperation::Plus
-                | BinaryOperation::Equality
-                | BinaryOperation::Minus => {
-                    self.execute_id(module, &lhs);
-                    let lhs_val = self.evaluation_stack.pop();
-
-                    self.execute_id(module, &rhs);
-                    let rhs_val = self.evaluation_stack.pop();
-
-                    match (lhs_val, rhs_val) {
-                        (Some(l), Some(r)) => self.execute_op(op, l, r),
-                        _ => panic!(),
-                    }
-                }
-                BinaryOperation::Application => {
-                    self.execute_id(module, &rhs);
-                    self.execute_id(module, &lhs);
-                }
-            },
-            IRItem::Lambda { parameter, body } => {
-                if !self.evaluation_stack.is_empty() {
-                    self.named_values.push(HashMap::default());
-                    self.execute_id(module, &parameter);
-                    let id = if let Some(ExecValue::Identifier(id)) = self.evaluation_stack.pop() {
-                        id
-                    } else {
-                        panic!()
-                    };
-                    let value = self.evaluation_stack.pop().unwrap();
-                    self.named_values
-                        .last_mut()
-                        .map(|map| map.insert(id, value));
-                    self.execute_id(module, &body);
-                    self.named_values.pop();
-                }
-            }
-            IRItem::If {
-                condition,
-                true_value,
-                false_value,
-            } => {
-                self.execute_id(module, &condition);
-                let condition = self.evaluation_stack.pop().unwrap();
-                if self.unpack_exec_bool(&condition) {
-                    self.execute_id(module, &true_value)
+    match module.get_item(&id).cloned().unwrap() {
+        IRItem::Identifier(name) => match environment.get(&id).cloned() {
+            Some(exp) => exp,
+            None => Expr::Identifier(name),
+        },
+        IRItem::Literal(lit) => Expr::Literal(lit),
+        IRItem::Lambda { parameter, body } => Expr::Closure {
+            parameter,
+            body,
+            environment: environment.clone(),
+        },
+        IRItem::If {
+            condition,
+            true_value,
+            false_value,
+        } => {
+            let result = eval(module, condition, environment);
+            if let Expr::Literal(Literal::Boolean(b)) = result {
+                if b {
+                    eval(module, true_value, environment)
                 } else {
-                    self.execute_id(module, &false_value)
+                    eval(module, false_value, environment)
                 }
+            } else {
+                panic!("{result:?} should be a Literal(Boolean)");
             }
         }
-    }
-
-    fn unpack_exec_bool(&self, val: &ExecValue) -> bool {
-        match val {
-            ExecValue::Literal(lit) => match lit {
-                Literal::Integer(_) => panic!(),
-                Literal::Boolean(val) => *val,
-            },
-            ExecValue::Identifier(id) => self.unpack_exec_bool(self.find_value(id).unwrap()),
-        }
-    }
-
-    fn unpack_exec_int(&self, val: &ExecValue) -> i64 {
-        match val {
-            ExecValue::Literal(lit) => match lit {
-                Literal::Integer(val) => *val,
-                Literal::Boolean(_) => panic!(),
-            },
-            ExecValue::Identifier(id) => self.unpack_exec_int(self.find_value(id).unwrap()),
-        }
-    }
-
-    fn execute_op(&mut self, op: BinaryOperation, l: ExecValue, r: ExecValue) {
-        let lhs_val = self.unpack_exec_int(&l);
-        let rhs_val = self.unpack_exec_int(&r);
-        match op {
-            BinaryOperation::Plus => self
-                .evaluation_stack
-                .push(ExecValue::Literal(Literal::Integer(lhs_val + rhs_val))),
-            BinaryOperation::Minus => self
-                .evaluation_stack
-                .push(ExecValue::Literal(Literal::Integer(lhs_val - rhs_val))),
-            BinaryOperation::Mult => self
-                .evaluation_stack
-                .push(ExecValue::Literal(Literal::Integer(lhs_val * rhs_val))),
-            BinaryOperation::Equality => self
-                .evaluation_stack
-                .push(ExecValue::Literal(Literal::Boolean(lhs_val == rhs_val))),
+        IRItem::Binary { op, lhs, rhs } => match op {
             BinaryOperation::Application => {
-                panic!("execute_op should never need to call a function")
+                let lhs = eval(module, lhs, environment);
+                apply(module, lhs, Expr::Suspend((rhs, environment.clone())))
+            }
+            op => evaluate_prim(
+                module,
+                op,
+                environment
+                    .get(&lhs)
+                    .cloned()
+                    .unwrap_or_else(|| eval(module, lhs, environment)),
+                environment
+                    .get(&rhs)
+                    .cloned()
+                    .unwrap_or_else(|| eval(module, rhs, environment)),
+            ),
+        },
+    }
+}
+
+fn apply(module: &Module, lhs: Expr, rhs: Expr) -> Expr {
+    match lhs {
+        Expr::Closure {
+            parameter,
+            body,
+            mut environment,
+        } => {
+            environment.insert(parameter, rhs);
+            eval(module, body, &environment)
+        }
+        _ => todo!(),
+    }
+}
+
+fn evaluate_prim(module: &Module, op: BinaryOperation, lhs: Expr, rhs: Expr) -> Expr {
+    match (op, lhs, rhs) {
+        (BinaryOperation::Application, _, _) => unreachable!(),
+        (op, Expr::Suspend((lhs, env)), rhs) => {
+            evaluate_prim(module, op, eval(module, lhs, &env), rhs)
+        }
+        (op, lhs, Expr::Suspend((rhs, env))) => {
+            evaluate_prim(module, op, lhs, eval(module, rhs, &env))
+        }
+        (op, Expr::Literal(Literal::Integer(lhs)), Expr::Literal(Literal::Integer(rhs))) => {
+            match op {
+                BinaryOperation::Application => unreachable!(),
+                BinaryOperation::Equality => Expr::Literal(Literal::Boolean(lhs == rhs)),
+                BinaryOperation::Minus => Expr::Literal(Literal::Integer(lhs - rhs)),
+                BinaryOperation::Mult => Expr::Literal(Literal::Integer(lhs * rhs)),
+                BinaryOperation::Plus => Expr::Literal(Literal::Integer(lhs + rhs)),
             }
         }
+        prim_op => todo!("cannot evaluate_prim{prim_op:?}"),
     }
 }

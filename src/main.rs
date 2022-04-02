@@ -4,6 +4,7 @@ use std::{fs, io};
 use structopt::StructOpt;
 
 mod execute;
+use execute::execute;
 mod ir_tree;
 mod parser;
 mod syntax;
@@ -26,7 +27,6 @@ fn main() {
     let mut line = Default::default();
 
     let mut ir_mod = ir_tree::Module::new();
-    let mut exec_context = execute::ExecContext::new();
 
     if let Some(ref filename) = opts.input {
         let file_data = match fs::read_to_string(filename) {
@@ -78,7 +78,7 @@ fn main() {
         };
         ir_mod.set_root(new_root);
 
-        let result = exec_context.execute(&ir_mod);
+        let result = execute(&ir_mod);
 
         if let Some(result) = result {
             if opts.debug {
@@ -110,8 +110,7 @@ mod test {
         let ir_mod = ir_tree::Module::from_expr(&expr);
         println!("{:?}", ir_mod);
 
-        let mut exec_context = execute::ExecContext::new();
-        let result = exec_context.execute(&ir_mod);
+        let result = execute(&ir_mod);
         println!("{:?}", result);
         assert_eq!(result, Some(Literal::Integer(15)));
     }
@@ -130,8 +129,7 @@ mod test {
         let mut ir_mod = ir_tree::Module::from_decls(&[decl]);
         println!("{:?}", ir_mod);
 
-        let mut exec_context = execute::ExecContext::new();
-        let result = exec_context.execute(&ir_mod);
+        let result = execute(&ir_mod);
         println!("{:?}", result);
         assert_eq!(result, None);
 
@@ -146,7 +144,7 @@ mod test {
         let new_root = ir_mod.add_expr(&expr);
         ir_mod.set_root(new_root);
 
-        let result = exec_context.execute(&ir_mod);
+        let result = execute(&ir_mod);
         println!("{:?}", result);
         assert_eq!(result, Some(Literal::Integer(15)));
     }
@@ -165,8 +163,7 @@ mod test {
         let mut ir_mod = ir_tree::Module::from_decls(&[decl]);
         println!("{:?}", ir_mod);
 
-        let mut exec_context = execute::ExecContext::new();
-        let result = exec_context.execute(&ir_mod);
+        let result = execute(&ir_mod);
         println!("{:?}", result);
         assert_eq!(result, None);
 
@@ -181,7 +178,7 @@ mod test {
         let new_root = ir_mod.add_expr(&expr);
         ir_mod.set_root(new_root);
 
-        let result = exec_context.execute(&ir_mod);
+        let result = execute(&ir_mod);
         println!("{:?}", result);
         assert_eq!(result, Some(Literal::Integer(20)));
     }
@@ -200,8 +197,7 @@ mod test {
         let mut ir_mod = ir_tree::Module::from_expr(&expr);
         println!("{:?}", ir_mod);
 
-        let mut exec_context = execute::ExecContext::new();
-        let result = exec_context.execute(&ir_mod);
+        let result = execute(&ir_mod);
         println!("{:?}", result);
         assert_eq!(result, Some(Literal::Integer(5)));
 
@@ -216,7 +212,7 @@ mod test {
         let new_root = ir_mod.add_expr(&expr);
         ir_mod.set_root(new_root);
 
-        let result = exec_context.execute(&ir_mod);
+        let result = execute(&ir_mod);
         println!("{:?}", result);
         assert_eq!(result, Some(Literal::Integer(10)));
     }
@@ -235,8 +231,7 @@ mod test {
         let mut ir_mod = ir_tree::Module::from_expr(&expr);
         println!("{:?}", ir_mod);
 
-        let mut exec_context = execute::ExecContext::new();
-        let result = exec_context.execute(&ir_mod);
+        let result = execute(&ir_mod);
         println!("{:?}", result);
         assert_eq!(result, Some(Literal::Integer(10)));
 
@@ -251,7 +246,7 @@ mod test {
         let new_root = ir_mod.add_decl(&decl);
         ir_mod.set_root(new_root);
 
-        let result = exec_context.execute(&ir_mod);
+        let result = execute(&ir_mod);
         println!("{:?}", result);
         assert_eq!(result, Some(Literal::Integer(10)));
     }
