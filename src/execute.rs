@@ -8,7 +8,7 @@ type Environment = HashMap<IRId, Expr>;
 #[derive(Debug, Clone)]
 enum Expr {
     Literal(Literal),
-    Suspend((IRId, HashMap<IRId, Expr>)),
+    Suspend((IRId, Environment)),
     Closure {
         parameter: IRId,
         body: IRId,
