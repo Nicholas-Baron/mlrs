@@ -20,37 +20,42 @@ struct Options {
     input: Option<PathBuf>,
 }
 
+fn ir_from_file(filename: &str, debug: bool) -> ir_tree::Module {
+    let file_data = match fs::read_to_string(filename) {
+        Ok(data) => data,
+        Err(e) => {
+            eprintln!("Error loading {:?}: {}", filename, e);
+            Default::default()
+        }
+    };
+
+    let mut ir_mod = ir_tree::Module::new();
+    match parser::parse_declaration_list(&file_data) {
+        Ok((remaining, decls)) => {
+            if debug {
+                println!("{:?} (remaining: {:?})", decls, remaining);
+            }
+
+            ir_mod.add_decls(&decls);
+        }
+        Err(e) => {
+            eprintln!("{}", e);
+        }
+    }
+    ir_mod
+}
+
 fn main() {
     let opts = Options::from_args();
 
+    let mut ir_mod = if let Some(ref filename) = opts.input {
+        ir_from_file(filename.to_str().unwrap(), opts.debug)
+    } else {
+        Default::default()
+    };
+
     let stdin = io::stdin();
     let mut line = Default::default();
-
-    let mut ir_mod = ir_tree::Module::new();
-
-    if let Some(ref filename) = opts.input {
-        let file_data = match fs::read_to_string(filename) {
-            Ok(data) => data,
-            Err(e) => {
-                eprintln!("Error loading {:?}: {}", filename, e);
-                Default::default()
-            }
-        };
-
-        match parser::parse_declaration_list(&file_data) {
-            Ok((remaining, decls)) => {
-                if opts.debug {
-                    println!("{:?} (remaining: {:?})", decls, remaining);
-                }
-
-                ir_mod.add_decls(&decls);
-            }
-            Err(e) => {
-                eprintln!("{}", e);
-            }
-        }
-    }
-
     while let Ok(byte_count) = stdin.read_line(&mut line) {
         if byte_count == 0 {
             break;
