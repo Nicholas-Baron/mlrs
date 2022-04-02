@@ -100,6 +100,9 @@ fn evaluate_prim(module: &Module, op: BinaryOperation, lhs: Expr, rhs: Expr) -> 
         (op, lhs, Expr::Suspend((rhs, env))) => {
             evaluate_prim(module, op, lhs, eval(module, rhs, &env))
         }
+        (BinaryOperation::Equality, Expr::Literal(lhs), Expr::Literal(rhs)) => {
+            Expr::Literal(Literal::Boolean(lhs == rhs))
+        }
         (op, Expr::Literal(Literal::Integer(lhs)), Expr::Literal(Literal::Integer(rhs))) => {
             match op {
                 BinaryOperation::Application => unreachable!(),
