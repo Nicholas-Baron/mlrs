@@ -64,14 +64,8 @@ fn eval(module: &Module, id: IRId, environment: &Environment) -> Expr {
             op => evaluate_prim(
                 module,
                 op,
-                environment
-                    .get(&lhs)
-                    .cloned()
-                    .unwrap_or_else(|| eval(module, lhs, environment)),
-                environment
-                    .get(&rhs)
-                    .cloned()
-                    .unwrap_or_else(|| eval(module, rhs, environment)),
+                eval(module, lhs, environment),
+                eval(module, rhs, environment),
             ),
         },
     }
