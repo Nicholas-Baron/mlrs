@@ -1,5 +1,5 @@
 use crate::ir_tree::{IRId, IRItem, Module};
-use crate::syntax::{BinaryOperation, Identifier, Literal};
+use crate::syntax::{BinaryOperation, Literal};
 
 use std::collections::HashMap;
 
@@ -8,7 +8,6 @@ type Environment = HashMap<IRId, Expr>;
 #[derive(Debug, Clone)]
 pub enum Expr {
     Literal(Literal),
-    Identifier(Identifier),
     Suspend((IRId, HashMap<IRId, Expr>)),
     Closure {
         parameter: IRId,
@@ -32,10 +31,9 @@ fn eval(module: &Module, id: IRId, environment: &Environment) -> Expr {
     }
 
     match module.get_item(&id).cloned().unwrap() {
-        IRItem::Identifier(name) => match environment.get(&id).cloned() {
-            Some(exp) => exp,
-            None => Expr::Identifier(name),
-        },
+        ident @ IRItem::Identifier(_) => {
+            unreachable!("tried to evaluate {ident:?} that is not in {environment:?}")
+        }
         IRItem::Literal(lit) => Expr::Literal(lit),
         IRItem::Lambda { parameter, body } => Expr::Closure {
             parameter,
