@@ -87,7 +87,7 @@ fn apply(module: &Module, lhs: Expr, rhs: Expr) -> Expr {
             environment.insert(parameter, rhs);
             eval(module, body, &environment)
         }
-        _ => todo!(),
+        _ => todo!("cannot apply {rhs:?} to a lhs of {lhs:?}"),
     }
 }
 
