@@ -6,7 +6,7 @@ use std::collections::HashMap;
 type Environment = HashMap<IRId, Expr>;
 
 #[derive(Debug, Clone)]
-pub enum Expr {
+enum Expr {
     Literal(Literal),
     Suspend((IRId, HashMap<IRId, Expr>)),
     Closure {
