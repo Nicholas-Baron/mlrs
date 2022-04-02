@@ -45,8 +45,8 @@ pub enum DeclOrExpr {
 
 pub fn parse_decl_or_expr(input: &str) -> IResult<&str, DeclOrExpr> {
     branch::alt((
-        combinator::map(parse_declaration, |decl| DeclOrExpr::Decl(decl)),
-        combinator::map(parse_expression, |expr| DeclOrExpr::Expr(expr)),
+        combinator::map(parse_declaration, DeclOrExpr::Decl),
+        combinator::map(parse_expression, DeclOrExpr::Expr),
     ))(input)
 }
 
