@@ -20,18 +20,17 @@ fn parse_separator(input: &str) -> IResult<&str, ()> {
     )(input)
 }
 
+const RESERVED_WORDS: &[&str] = &[
+    "if", "then", "else", "true", "True", "false", "False", "let", "in",
+];
+
 fn parse_identifier(input: &str) -> IResult<&str, String> {
     use complete::{alpha1, alphanumeric0};
     combinator::verify(
         combinator::map(sequence::pair(alpha1, alphanumeric0), |(first, second)| {
             format!("{}{}", first, second)
         }),
-        |id: &String| {
-            let reserved = [
-                "if", "then", "else", "true", "True", "false", "False", "let", "in",
-            ];
-            !reserved.into_iter().any(|kw| kw == id)
-        },
+        |id: &String| !RESERVED_WORDS.into_iter().any(|kw| kw == id),
     )(input)
 }
 
