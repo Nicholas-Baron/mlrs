@@ -3,13 +3,22 @@ use super::syntax::*;
 use nom::{
     branch,
     bytes::complete::tag,
-    character::complete::{self, char, multispace0, multispace1},
+    character::complete::{self, char, multispace0, multispace1, space0},
     combinator, multi, sequence, IResult,
 };
 
 mod expression;
 pub use expression::parse_expression;
-use expression::parse_expression_separator;
+
+fn parse_separator(input: &str) -> IResult<&str, ()> {
+    combinator::value(
+        (),
+        multi::many1_count(sequence::preceded(
+            space0,
+            branch::alt((complete::line_ending, tag(";"))),
+        )),
+    )(input)
+}
 
 fn parse_identifier(input: &str) -> IResult<&str, String> {
     use complete::{alpha1, alphanumeric0};
@@ -51,7 +60,7 @@ pub fn parse_decl_or_expr(input: &str) -> IResult<&str, DeclOrExpr> {
 }
 
 pub fn parse_declaration_list(input: &str) -> IResult<&str, Vec<Declaration>> {
-    multi::separated_list0(multi::many1(parse_expression_separator), parse_declaration)(input)
+    multi::separated_list0(multi::many1(parse_separator), parse_declaration)(input)
 }
 
 pub fn parse_declaration(input: &str) -> IResult<&str, Declaration> {

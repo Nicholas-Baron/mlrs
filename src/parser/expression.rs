@@ -5,22 +5,12 @@ use nom::{
     combinator, multi, sequence, IResult,
 };
 
-use super::{parse_comment, parse_identifier, BinaryOperation, Expr, Literal};
-
-pub(super) fn parse_expression_separator(input: &str) -> IResult<&str, ()> {
-    combinator::value(
-        (),
-        multi::many1_count(sequence::preceded(
-            space0,
-            branch::alt((complete::line_ending, tag(";"))),
-        )),
-    )(input)
-}
+use super::{parse_comment, parse_identifier, parse_separator, BinaryOperation, Expr, Literal};
 
 pub fn parse_expression(input: &str) -> IResult<&str, Expr> {
     let (input, _) = multi::many0(branch::alt((
         parse_comment,
-        parse_expression_separator,
+        parse_separator,
         combinator::value((), multispace1),
     )))(input)?;
     branch::alt((
