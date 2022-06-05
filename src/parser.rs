@@ -30,7 +30,7 @@ fn parse_identifier(input: &str) -> IResult<&str, String> {
         combinator::map(sequence::pair(alpha1, alphanumeric0), |(first, second)| {
             format!("{}{}", first, second)
         }),
-        |id: &String| !RESERVED_WORDS.into_iter().any(|kw| kw == id),
+        |id: &String| !RESERVED_WORDS.iter().any(|kw| kw == id),
     )(input)
 }
 
