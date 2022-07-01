@@ -18,6 +18,10 @@ struct Options {
     /// Input file
     #[structopt(parse(from_os_str))]
     input: Option<PathBuf>,
+
+    /// Interactive mode
+    #[structopt(short, long)]
+    interactive: bool,
 }
 
 fn ir_from_file(filename: &str, debug: bool) -> ir_tree::Module {
@@ -45,18 +49,9 @@ fn ir_from_file(filename: &str, debug: bool) -> ir_tree::Module {
     ir_mod
 }
 
-fn main() {
-    let opts = Options::from_args();
-
-    let mut ir_mod = if let Some(ref filename) = opts.input {
-        ir_from_file(filename.to_str().unwrap(), opts.debug)
-    } else {
-        Default::default()
-    };
-
-    let stdin = io::stdin();
+fn interact_with(input: io::Stdin, mut ir_mod: ir_tree::Module, debug: bool) {
     let mut line = Default::default();
-    while let Ok(byte_count) = stdin.read_line(&mut line) {
+    while let Ok(byte_count) = input.read_line(&mut line) {
         if byte_count == 0 {
             break;
         }
@@ -64,7 +59,7 @@ fn main() {
         // TODO: Allow stdin decls
         let decl_or_expr = match parser::parse_decl_or_expr(&line) {
             Ok((remaining, item)) => {
-                if opts.debug {
+                if debug {
                     println!("{:?} (remaining: {:?})", item, remaining);
                 }
                 line.clear();
@@ -86,13 +81,29 @@ fn main() {
         let result = execute(&ir_mod);
 
         if let Some(result) = result {
-            if opts.debug {
+            if debug {
                 println!("{:?}", ir_mod);
                 println!("{:?}", result);
             } else {
                 println!("{}", result);
             }
         }
+    }
+}
+
+fn main() {
+    let opts = Options::from_args();
+
+    let ir_mod = if let Some(ref filename) = opts.input {
+        ir_from_file(filename.to_str().unwrap(), opts.debug)
+    } else {
+        Default::default()
+    };
+
+    if opts.interactive {
+        interact_with(io::stdin(), ir_mod, opts.debug);
+    } else {
+        todo!("Currently, non-interactive mode does not have anything to evaluate")
     }
 }
 
