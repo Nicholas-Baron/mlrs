@@ -78,15 +78,17 @@ fn interact_with(input: io::Stdin, mut ir_mod: ir_tree::Module, debug: bool) {
         };
         ir_mod.set_root(new_root);
 
-        let result = execute(&ir_mod);
+        print_result(execute(&ir_mod), &ir_mod, debug);
+    }
+}
 
-        if let Some(result) = result {
-            if debug {
-                println!("{:?}", ir_mod);
-                println!("{:?}", result);
-            } else {
-                println!("{}", result);
-            }
+fn print_result(result: Option<syntax::Literal>, ir_mod: &ir_tree::Module, debug: bool) {
+    if let Some(result) = result {
+        if debug {
+            println!("{:?}", ir_mod);
+            println!("{:?}", result);
+        } else {
+            println!("{}", result);
         }
     }
 }
@@ -103,7 +105,7 @@ fn main() {
     if opts.interactive {
         interact_with(io::stdin(), ir_mod, opts.debug);
     } else {
-        todo!("Currently, non-interactive mode does not have anything to evaluate")
+        print_result(execute(&ir_mod), &ir_mod, opts.debug);
     }
 }
 
