@@ -91,9 +91,7 @@ impl Module {
     #[cfg(test)]
     pub fn from_decls(decls: &[syntax::Declaration]) -> Self {
         let mut module = Self::new();
-        for decl in decls {
-            module.root_id = Some(module.add_decl(decl));
-        }
+        module.root_id = module.add_decls(decls).last().cloned();
         module
     }
 
