@@ -268,4 +268,39 @@ mod test {
         println!("{:?}", result);
         assert_eq!(result, Some(Literal::Integer(10)));
     }
+
+    #[test]
+    fn subfunctions() {
+        let input = r#"
+          plusTen x = let
+            plusFive x = x + 5
+          in plusFive (plusFive x)
+        "#;
+
+        let func = match parser::parse_declaration(&input) {
+            Ok((remaining, expr)) => {
+                println!("{:?} (remaining: {:?})", expr, remaining);
+                expr
+            }
+            Err(e) => panic!("{}", e),
+        };
+
+        let mut ir_mod = ir_tree::Module::from_decls(&[func]);
+
+        let line = "plusTen 3";
+        let expr = match parser::parse_expression(&line) {
+            Ok((remaining, decl)) => {
+                println!("{:?} (remaining: {:?})", decl, remaining);
+                decl
+            }
+            Err(e) => panic!("{}", e),
+        };
+        let new_root = ir_mod.add_expr(&expr);
+        ir_mod.set_root(new_root);
+        println!("{:?}", ir_mod);
+
+        let result = execute(&ir_mod);
+        println!("{:?}", result);
+        assert_eq!(result, Some(Literal::Integer(13)));
+    }
 }
