@@ -101,6 +101,11 @@ impl Module {
         self.name_scope.last_mut().unwrap()
     }
 
+    /// Remove the most recent name scope from the list of scopes.
+    fn hide_top_name_scope(&mut self) {
+        self.name_scope.pop();
+    }
+
     /// Gets the current name scope. If none exists, then one will be created.
     fn current_name_scope(&mut self) -> &mut HashMap<Identifier, IRId> {
         if self.name_scope.is_empty() {
@@ -184,16 +189,20 @@ impl Module {
                 self.next_ir_id(),
                 // NOTE: The initalization order here matters.
                 // The parameter needs to be added *before* the body is processed.
-                IRItem::Lambda {
-                    parameter: {
-                        let param_id = self.next_ir_id();
-                        let name_scope = self.add_new_name_scope();
-                        name_scope.insert(parameter.clone(), param_id.clone());
-                        self.ir_items
-                            .insert(param_id.clone(), IRItem::Identifier(parameter.clone()));
-                        param_id
-                    },
-                    body: self.add_expr(body),
+                // We also need to remove the scope after we are done.
+                {
+                    let param_id = self.next_ir_id();
+                    let name_scope = self.add_new_name_scope();
+                    name_scope.insert(parameter.clone(), param_id.clone());
+                    self.ir_items
+                        .insert(param_id.clone(), IRItem::Identifier(parameter.clone()));
+                    let body = self.add_expr(body);
+                    self.hide_top_name_scope();
+
+                    IRItem::Lambda {
+                        parameter: param_id,
+                        body,
+                    }
                 },
             ),
             Expr::Binary { lhs, rhs, ref op } => (
@@ -226,7 +235,9 @@ impl Module {
                     .collect();
                 let name_scope = self.add_new_name_scope();
                 *name_scope = bound_names;
-                return self.add_expr(inner_expr);
+                let inner_expr = self.add_expr(inner_expr);
+                self.hide_top_name_scope();
+                return inner_expr;
             }
         };
         self.ir_items.insert(expr_id.clone(), ir_expr);
@@ -255,26 +266,22 @@ mod tests {
         };
 
         let module = Module::from_expr(&lambda);
-        assert_eq!(module.name_scope.len(), 2);
+        assert_eq!(module.name_scope.len(), 0);
         assert_ne!(module.root_id, None);
 
         let x_id = module.find_identifier(&"x".to_string());
-        assert_ne!(x_id, None);
+        assert_eq!(x_id, None);
         let y_id = module.find_identifier(&"y".to_string());
-        assert_ne!(y_id, None);
+        assert_eq!(y_id, None);
         let z_id = module.find_identifier(&"z".to_string());
         assert_eq!(z_id, None);
 
         println!("{:?}", module);
 
-        assert_eq!(
-            module.ir_items.get(x_id.unwrap()),
-            Some(&IRItem::Identifier("x".to_string()))
-        );
-        assert_eq!(
-            module.ir_items.get(y_id.unwrap()),
-            Some(&IRItem::Identifier("y".to_string()))
-        );
+        assert!(match module.get_item(module.root_id().unwrap()) {
+            Some(&IRItem::Lambda { .. }) => true,
+            _ => false,
+        });
     }
 
     #[test]
@@ -288,28 +295,23 @@ mod tests {
         };
 
         let module = Module::from_decls(&[lambda]);
-        assert_eq!(module.name_scope.len(), 2);
+        assert_eq!(module.name_scope.len(), 1);
         assert_ne!(module.root_id, None);
 
         let f_id = module.find_identifier(&"f".to_string());
         assert_ne!(f_id, None);
         let x_id = module.find_identifier(&"x".to_string());
-        assert_ne!(x_id, None);
-        let x_id = x_id.unwrap();
+        assert_eq!(x_id, None);
 
         println!("{:?}", module);
 
-        assert_eq!(
-            module.ir_items.get(f_id.unwrap()),
+        assert!(match module.ir_items.get(f_id.unwrap()) {
             Some(&IRItem::Lambda {
-                parameter: x_id.clone(),
-                body: x_id.clone()
-            })
-        );
-        assert_eq!(
-            module.ir_items.get(x_id),
-            Some(&IRItem::Identifier("x".to_string()))
-        );
+                ref parameter,
+                ref body,
+            }) => parameter == body,
+            _ => false,
+        });
     }
 
     #[test]
@@ -362,5 +364,48 @@ mod tests {
         assert_ne!(x_id, None);
 
         println!("{:?}", module);
+    }
+
+    #[test]
+    fn lowers_subfunction() {
+        let inner_lambda = syntax::Declaration {
+            name: "inner".to_string(),
+            expr: Box::new(syntax::Expr::Lambda {
+                parameter: "x".to_string(),
+                body: Box::new(syntax::Expr::Identifier("x".to_string())),
+            }),
+        };
+
+        let outer_lambda = syntax::Declaration {
+            name: "outer".to_string(),
+            expr: Box::new(syntax::Expr::Lambda {
+                parameter: "x".to_string(),
+                body: Box::new(syntax::Expr::Let {
+                    inner_expr: Box::new(syntax::Expr::Binary {
+                        op: syntax::BinaryOperation::Application,
+                        rhs: Box::new(syntax::Expr::Identifier("x".to_string())),
+                        lhs: Box::new(syntax::Expr::Identifier("inner".to_string())),
+                    }),
+                    bound_values: vec![inner_lambda],
+                }),
+            }),
+        };
+
+        let module = Module::from_decls(&[outer_lambda]);
+        assert_eq!(module.name_scope.len(), 1);
+        assert_ne!(module.root_id, None);
+        println!("{:?}", module);
+
+        let x_id = module.find_identifier(&"x".to_string());
+        assert_eq!(x_id, None);
+        let inner_id = module.find_identifier(&"inner".to_string());
+        assert_eq!(inner_id, None);
+        let outer_id = module.find_identifier(&"outer".to_string());
+        assert_ne!(outer_id, None);
+
+        assert!(match module.get_item(outer_id.unwrap()) {
+            Some(&IRItem::Lambda { .. }) => true,
+            _ => false,
+        });
     }
 }
