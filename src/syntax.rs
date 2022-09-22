@@ -38,7 +38,7 @@ pub enum Expr {
     },
 }
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub enum BinaryOperation {
     Application,
     Equality,
@@ -48,7 +48,7 @@ pub enum BinaryOperation {
 }
 
 // TODO: Fold this into `Expr`?
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub enum Literal {
     Boolean(bool),
     Integer(i64),

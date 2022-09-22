@@ -11,7 +11,7 @@ impl IRId {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum IRItem {
     Literal(Literal),
     Identifier(Identifier),
@@ -177,7 +177,7 @@ impl Module {
     pub fn add_expr(&mut self, expr: &syntax::Expr) -> IRId {
         use syntax::Expr;
 
-        let (expr_id, ir_expr) = match &*expr {
+        let (expr_id, ir_expr) = match expr {
             Expr::Literal(x) => (self.next_ir_id(), IRItem::Literal(x.clone())),
             Expr::Identifier(ident) => {
                 return match self.find_identifier(ident).cloned() {
