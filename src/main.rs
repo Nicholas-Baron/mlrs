@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::{fs, io};
 
-use structopt::StructOpt;
+use clap::Parser;
 
 mod execute;
 use execute::execute;
@@ -9,7 +9,7 @@ mod ir_tree;
 mod parser;
 mod syntax;
 
-#[derive(StructOpt)]
+#[derive(Parser)]
 #[structopt(name = "mlrs", about = "A small ML-like langauge written in Rust")]
 struct Options {
     #[structopt(short, long)]
