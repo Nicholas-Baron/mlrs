@@ -63,43 +63,32 @@ pub fn parse_declaration_list(input: &str) -> IResult<&str, Vec<Declaration>> {
 }
 
 pub fn parse_declaration(input: &str) -> IResult<&str, Declaration> {
-    branch::alt((
-        combinator::map(
-            sequence::tuple((
-                multispace0,
-                parse_identifier,
-                multispace0,
-                char('='),
-                multispace0,
-                parse_expression,
-            )),
-            |(_, name, _, _eq, _, expr)| Declaration {
-                name,
-                expr: Box::new(expr),
-            },
-        ),
-        combinator::map(
-            sequence::tuple((
-                multispace0,
-                parse_identifier,
-                multispace1,
-                multi::separated_list1(multispace1, parse_identifier),
-                multispace0,
-                char('='),
-                multispace0,
-                parse_expression,
-            )),
-            |(_, name, _, args, _, _eq, _, expr)| Declaration {
-                name,
-                expr: args.into_iter().rev().fold(Box::new(expr), |body, arg| {
-                    Box::new(Expr::Lambda {
-                        body,
-                        parameter: arg,
-                    })
+    let (input, name) = sequence::preceded(multispace0, parse_identifier)(input)?;
+
+    // There may be some parameters to parse
+    let (input, params) = sequence::preceded(
+        multispace1,
+        multi::separated_list1(multispace1, parse_identifier),
+    )(input)
+    .unwrap_or((input, vec![]));
+
+    let (input, body) = sequence::preceded(
+        sequence::delimited(multispace0, char('='), multispace0),
+        parse_expression,
+    )(input)?;
+
+    Ok((
+        input,
+        Declaration {
+            name,
+            expr: params
+                .into_iter()
+                .rev()
+                .fold(Box::new(body), |body, parameter| {
+                    Box::new(Expr::Lambda { body, parameter })
                 }),
-            },
-        ),
-    ))(input)
+        },
+    ))
 }
 
 #[cfg(test)]
