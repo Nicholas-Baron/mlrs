@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::{fs, io};
 
-use clap::Parser;
+use clap::{ArgGroup, Parser};
 
 mod execute;
 use execute::execute;
@@ -11,13 +11,18 @@ mod syntax;
 
 #[derive(Parser)]
 #[structopt(name = "mlrs", about = "A small ML-like langauge written in Rust")]
+#[command(group(
+            ArgGroup::new("input")
+                .required(true)
+                .multiple(true)
+                .args(["interactive", "input_file"]),
+        ))]
 struct Options {
     #[structopt(short, long)]
     debug: bool,
 
     /// Input file
-    #[structopt(parse(from_os_str))]
-    input: Option<PathBuf>,
+    input_file: Option<PathBuf>,
 
     /// Interactive mode
     #[structopt(short, long)]
@@ -94,9 +99,9 @@ fn print_result(result: Option<syntax::Literal>, ir_mod: &ir_tree::Module, debug
 }
 
 fn main() {
-    let opts = Options::from_args();
+    let opts = Options::parse();
 
-    let ir_mod = if let Some(ref filename) = opts.input {
+    let ir_mod = if let Some(ref filename) = opts.input_file {
         ir_from_file(filename.to_str().unwrap(), opts.debug)
     } else {
         Default::default()

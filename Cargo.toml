@@ -10,4 +10,4 @@ debug = true
 [dependencies]
 nom = "7.1.0"
 partitions = "0.2.4"
-clap = { version = "3.2.22", features = ["derive", "suggestions", "color"] }
+clap = { version = "4.0.10", features = ["derive", "suggestions", "color"] }
