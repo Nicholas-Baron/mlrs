@@ -54,7 +54,7 @@ fn ir_from_file(filename: &str, debug: bool) -> ir_tree::Module {
                     Expr(expr) => {
                         let new_root = ir_mod.add_expr(&expr);
                         ir_mod.set_root(new_root);
-                        print_result(execute(&ir_mod), &ir_mod, debug);
+                        print_result(execute(&ir_mod), debug.then_some(&ir_mod));
                     }
                 }
             }
@@ -95,13 +95,13 @@ fn interact_with(input: io::Stdin, mut ir_mod: ir_tree::Module, debug: bool) {
         };
         ir_mod.set_root(new_root);
 
-        print_result(execute(&ir_mod), &ir_mod, debug);
+        print_result(execute(&ir_mod), debug.then_some(&ir_mod));
     }
 }
 
-fn print_result(result: Option<syntax::Literal>, ir_mod: &ir_tree::Module, debug: bool) {
+fn print_result(result: Option<syntax::Literal>, ir_mod: Option<&ir_tree::Module>) {
     if let Some(result) = result {
-        if debug {
+        if let Some(ir_mod) = ir_mod {
             println!("{:?}", ir_mod);
             println!("{:?}", result);
         } else {
@@ -122,7 +122,7 @@ fn main() {
     if opts.interactive {
         interact_with(io::stdin(), ir_mod, opts.debug);
     } else {
-        print_result(execute(&ir_mod), &ir_mod, opts.debug);
+        print_result(execute(&ir_mod), opts.debug.then_some(&ir_mod));
     }
 }
 
