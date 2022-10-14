@@ -89,7 +89,9 @@ impl Module {
     #[cfg(test)]
     pub fn from_decls(decls: &[syntax::Declaration]) -> Self {
         let mut module = Self::new();
-        module.add_decls(decls);
+        decls.iter().for_each(|decl| {
+            module.add_decl(decl);
+        });
         module
     }
 
@@ -145,10 +147,6 @@ impl Module {
         for item in self.ir_items.values_mut() {
             item.rewrite_id_to(dest_id, src_id);
         }
-    }
-
-    pub fn add_decls(&mut self, decls: &[syntax::Declaration]) -> Vec<IRId> {
-        decls.iter().map(|decl| self.add_decl(decl)).collect()
     }
 
     pub fn add_decl(&mut self, decl: &syntax::Declaration) -> IRId {
