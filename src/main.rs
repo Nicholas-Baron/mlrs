@@ -4,7 +4,7 @@ use std::{fs, io};
 use clap::{ArgGroup, Parser};
 
 mod execute;
-use execute::execute;
+use execute::{evaluate_id, execute};
 mod ir_tree;
 mod parser;
 mod syntax;
@@ -52,9 +52,8 @@ fn ir_from_file(filename: &str, debug: bool) -> ir_tree::Module {
                         ir_mod.add_decl(&decl);
                     }
                     Expr(expr) => {
-                        let new_root = ir_mod.add_expr(&expr);
-                        ir_mod.set_root(new_root);
-                        print_result(execute(&ir_mod), debug.then_some(&ir_mod));
+                        let expr_id = ir_mod.add_expr(&expr);
+                        print_result(evaluate_id(&ir_mod, expr_id), debug.then_some(&ir_mod));
                     }
                 }
             }
@@ -73,7 +72,6 @@ fn interact_with(input: io::Stdin, mut ir_mod: ir_tree::Module, debug: bool) {
             break;
         }
 
-        // TODO: Allow stdin decls
         let decl_or_expr = match parser::parse_decl_or_expr(&line) {
             Ok((remaining, item)) => {
                 if debug {

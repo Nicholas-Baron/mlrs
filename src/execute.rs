@@ -16,13 +16,17 @@ enum Expr {
     },
 }
 
-pub fn execute(module: &Module) -> Option<Literal> {
-    let start_id = module.root_id().cloned().unwrap();
+pub fn evaluate_id(module: &Module, id: IRId) -> Option<Literal> {
     let environment = Environment::default();
-    match eval(module, start_id, &environment) {
+    match eval(module, id, &environment) {
         Expr::Literal(exp) => Some(exp),
         _ => None,
     }
+}
+
+pub fn execute(module: &Module) -> Option<Literal> {
+    let start_id = module.root_id().cloned().unwrap();
+    evaluate_id(module, start_id)
 }
 
 fn eval(module: &Module, id: IRId, environment: &Environment) -> Expr {
