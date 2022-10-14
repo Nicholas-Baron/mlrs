@@ -39,13 +39,25 @@ fn ir_from_file(filename: &str, debug: bool) -> ir_tree::Module {
     };
 
     let mut ir_mod = ir_tree::Module::new();
-    match parser::parse_declaration_list(&file_data) {
-        Ok((remaining, decls)) => {
+    match parser::parse_decl_or_expr_list(&file_data) {
+        Ok((remaining, items)) => {
             if debug {
-                println!("{:?} (remaining: {:?})", decls, remaining);
+                println!("{:?} (remaining: {:?})", items, remaining);
             }
 
-            ir_mod.add_decls(&decls);
+            for decl_or_expr in items {
+                use parser::DeclOrExpr::*;
+                match decl_or_expr {
+                    Decl(decl) => {
+                        ir_mod.add_decl(&decl);
+                    }
+                    Expr(expr) => {
+                        let new_root = ir_mod.add_expr(&expr);
+                        ir_mod.set_root(new_root);
+                        print_result(execute(&ir_mod), &ir_mod, debug);
+                    }
+                }
+            }
         }
         Err(e) => {
             eprintln!("{}", e);

@@ -58,6 +58,10 @@ pub fn parse_decl_or_expr(input: &str) -> IResult<&str, DeclOrExpr> {
     ))(input)
 }
 
+pub fn parse_decl_or_expr_list(input: &str) -> IResult<&str, Vec<DeclOrExpr>> {
+    multi::separated_list0(multi::many1(parse_separator), parse_decl_or_expr)(input)
+}
+
 pub fn parse_declaration_list(input: &str) -> IResult<&str, Vec<Declaration>> {
     multi::separated_list0(multi::many1(parse_separator), parse_declaration)(input)
 }
