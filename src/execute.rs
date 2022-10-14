@@ -24,11 +24,6 @@ pub fn evaluate_id(module: &Module, id: IRId) -> Option<Literal> {
     }
 }
 
-pub fn execute(module: &Module) -> Option<Literal> {
-    let start_id = module.root_id().cloned().unwrap();
-    evaluate_id(module, start_id)
-}
-
 fn eval(module: &Module, id: IRId, environment: &Environment) -> Expr {
     if let Some(exp) = environment.get(&id).cloned() {
         return exp;

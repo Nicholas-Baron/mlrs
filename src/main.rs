@@ -4,7 +4,7 @@ use std::{fs, io};
 use clap::{ArgGroup, Parser};
 
 mod execute;
-use execute::{evaluate_id, execute};
+use execute::evaluate_id;
 mod ir_tree;
 mod parser;
 mod syntax;
@@ -87,13 +87,12 @@ fn interact_with(input: io::Stdin, mut ir_mod: ir_tree::Module, debug: bool) {
             }
         };
 
-        let new_root = match decl_or_expr {
+        let new_id = match decl_or_expr {
             parser::DeclOrExpr::Expr(expr) => ir_mod.add_expr(&expr),
             parser::DeclOrExpr::Decl(decl) => ir_mod.add_decl(&decl),
         };
-        ir_mod.set_root(new_root);
 
-        print_result(execute(&ir_mod), debug.then_some(&ir_mod));
+        print_result(evaluate_id(&ir_mod, new_id), debug.then_some(&ir_mod));
     }
 }
 
@@ -119,8 +118,6 @@ fn main() {
 
     if opts.interactive {
         interact_with(io::stdin(), ir_mod, opts.debug);
-    } else {
-        print_result(execute(&ir_mod), opts.debug.then_some(&ir_mod));
     }
 }
 
@@ -140,10 +137,10 @@ mod test {
             Err(e) => panic!("{}", e),
         };
 
-        let ir_mod = ir_tree::Module::from_expr(&expr);
+        let (ir_mod, expr_id) = ir_tree::Module::from_expr(&expr);
         println!("{:?}", ir_mod);
 
-        let result = execute(&ir_mod);
+        let result = evaluate_id(&ir_mod, expr_id);
         println!("{:?}", result);
         assert_eq!(result, Some(Literal::Integer(15)));
     }
@@ -162,10 +159,6 @@ mod test {
         let mut ir_mod = ir_tree::Module::from_decls(&[decl]);
         println!("{:?}", ir_mod);
 
-        let result = execute(&ir_mod);
-        println!("{:?}", result);
-        assert_eq!(result, None);
-
         let line = "f 10";
         let expr = match parser::parse_expression(&line) {
             Ok((remaining, expr)) => {
@@ -174,10 +167,9 @@ mod test {
             }
             Err(e) => panic!("{}", e),
         };
-        let new_root = ir_mod.add_expr(&expr);
-        ir_mod.set_root(new_root);
+        let expr_id = ir_mod.add_expr(&expr);
 
-        let result = execute(&ir_mod);
+        let result = evaluate_id(&ir_mod, expr_id);
         println!("{:?}", result);
         assert_eq!(result, Some(Literal::Integer(15)));
     }
@@ -196,10 +188,6 @@ mod test {
         let mut ir_mod = ir_tree::Module::from_decls(&[decl]);
         println!("{:?}", ir_mod);
 
-        let result = execute(&ir_mod);
-        println!("{:?}", result);
-        assert_eq!(result, None);
-
         let line = "double 10";
         let expr = match parser::parse_expression(&line) {
             Ok((remaining, expr)) => {
@@ -208,10 +196,9 @@ mod test {
             }
             Err(e) => panic!("{}", e),
         };
-        let new_root = ir_mod.add_expr(&expr);
-        ir_mod.set_root(new_root);
+        let expr_id = ir_mod.add_expr(&expr);
 
-        let result = execute(&ir_mod);
+        let result = evaluate_id(&ir_mod, expr_id);
         println!("{:?}", result);
         assert_eq!(result, Some(Literal::Integer(20)));
     }
@@ -227,10 +214,10 @@ mod test {
             Err(e) => panic!("{}", e),
         };
 
-        let mut ir_mod = ir_tree::Module::from_expr(&expr);
+        let (mut ir_mod, expr_id) = ir_tree::Module::from_expr(&expr);
         println!("{:?}", ir_mod);
 
-        let result = execute(&ir_mod);
+        let result = evaluate_id(&ir_mod, expr_id);
         println!("{:?}", result);
         assert_eq!(result, Some(Literal::Integer(5)));
 
@@ -242,10 +229,9 @@ mod test {
             }
             Err(e) => panic!("{}", e),
         };
-        let new_root = ir_mod.add_expr(&expr);
-        ir_mod.set_root(new_root);
+        let expr_id = ir_mod.add_expr(&expr);
 
-        let result = execute(&ir_mod);
+        let result = evaluate_id(&ir_mod, expr_id);
         println!("{:?}", result);
         assert_eq!(result, Some(Literal::Integer(10)));
     }
@@ -261,10 +247,10 @@ mod test {
             Err(e) => panic!("{}", e),
         };
 
-        let mut ir_mod = ir_tree::Module::from_expr(&expr);
+        let (mut ir_mod, expr_id) = ir_tree::Module::from_expr(&expr);
         println!("{:?}", ir_mod);
 
-        let result = execute(&ir_mod);
+        let result = evaluate_id(&ir_mod, expr_id);
         println!("{:?}", result);
         assert_eq!(result, Some(Literal::Integer(10)));
 
@@ -276,10 +262,9 @@ mod test {
             }
             Err(e) => panic!("{}", e),
         };
-        let new_root = ir_mod.add_decl(&decl);
-        ir_mod.set_root(new_root);
+        let decl_id = ir_mod.add_decl(&decl);
 
-        let result = execute(&ir_mod);
+        let result = evaluate_id(&ir_mod, decl_id);
         println!("{:?}", result);
         assert_eq!(result, Some(Literal::Integer(10)));
     }
@@ -310,11 +295,10 @@ mod test {
             }
             Err(e) => panic!("{}", e),
         };
-        let new_root = ir_mod.add_expr(&expr);
-        ir_mod.set_root(new_root);
+        let expr_id = ir_mod.add_expr(&expr);
         println!("{:?}", ir_mod);
 
-        let result = execute(&ir_mod);
+        let result = evaluate_id(&ir_mod, expr_id);
         println!("{:?}", result);
         assert_eq!(result, Some(Literal::Integer(13)));
     }

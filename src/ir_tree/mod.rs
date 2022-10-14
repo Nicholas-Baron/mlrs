@@ -72,7 +72,6 @@ pub struct Module {
     ir_items: HashMap<IRId, IRItem>,
     name_scope: Vec<HashMap<Identifier, IRId>>,
     next_ir_id: IRId,
-    root_id: Option<IRId>,
 }
 
 impl Module {
@@ -81,17 +80,16 @@ impl Module {
     }
 
     #[cfg(test)]
-    pub fn from_expr(expr: &syntax::Expr) -> Self {
+    pub fn from_expr(expr: &syntax::Expr) -> (Self, IRId) {
         let mut module = Self::new();
-        let root_id = module.add_expr(expr);
-        module.root_id = Some(root_id);
-        module
+        let expr_id = module.add_expr(expr);
+        (module, expr_id)
     }
 
     #[cfg(test)]
     pub fn from_decls(decls: &[syntax::Declaration]) -> Self {
         let mut module = Self::new();
-        module.root_id = module.add_decls(decls).last().cloned();
+        module.add_decls(decls);
         module
     }
 
@@ -123,16 +121,8 @@ impl Module {
             .find_map(|scope| scope.get(identifier))
     }
 
-    pub fn root_id(&self) -> Option<&IRId> {
-        self.root_id.as_ref()
-    }
-
     pub fn get_item(&self, id: &IRId) -> Option<&IRItem> {
         self.ir_items.get(id)
-    }
-
-    pub fn set_root(&mut self, id: IRId) {
-        self.root_id = Some(id)
     }
 
     fn rewrite_id_to(&mut self, dest_id: &IRId, src_id: &IRId) {
@@ -265,9 +255,8 @@ mod tests {
             }),
         };
 
-        let module = Module::from_expr(&lambda);
+        let (module, lambda_id) = Module::from_expr(&lambda);
         assert_eq!(module.name_scope.len(), 0);
-        assert_ne!(module.root_id, None);
 
         let x_id = module.find_identifier(&"x".to_string());
         assert_eq!(x_id, None);
@@ -278,7 +267,7 @@ mod tests {
 
         println!("{:?}", module);
 
-        assert!(match module.get_item(module.root_id().unwrap()) {
+        assert!(match module.get_item(&lambda_id) {
             Some(&IRItem::Lambda { .. }) => true,
             _ => false,
         });
@@ -296,7 +285,6 @@ mod tests {
 
         let module = Module::from_decls(&[lambda]);
         assert_eq!(module.name_scope.len(), 1);
-        assert_ne!(module.root_id, None);
 
         let f_id = module.find_identifier(&"f".to_string());
         assert_ne!(f_id, None);
@@ -323,7 +311,6 @@ mod tests {
 
         let mut module = Module::from_decls(&[x_bind]);
         assert_eq!(module.name_scope.len(), 1);
-        assert_ne!(module.root_id, None);
 
         let f_id = module.find_identifier(&"f".to_string());
         assert_eq!(f_id, None);
@@ -356,7 +343,6 @@ mod tests {
 
         let module = Module::from_decls(&[x_bind]);
         assert_eq!(module.name_scope.len(), 1);
-        assert_ne!(module.root_id, None);
 
         let f_id = module.find_identifier(&"f".to_string());
         assert_eq!(f_id, None);
@@ -393,7 +379,6 @@ mod tests {
 
         let module = Module::from_decls(&[outer_lambda]);
         assert_eq!(module.name_scope.len(), 1);
-        assert_ne!(module.root_id, None);
         println!("{:?}", module);
 
         let x_id = module.find_identifier(&"x".to_string());
