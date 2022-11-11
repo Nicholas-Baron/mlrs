@@ -24,6 +24,13 @@ const RESERVED_WORDS: &[&str] = &[
     "if", "then", "else", "true", "True", "false", "False", "let", "in",
 ];
 
+fn parse_pattern(input: &str) -> IResult<&str, Pattern> {
+    branch::alt((
+        combinator::map(parse_identifier, Pattern::Id),
+        combinator::map(char('_'), |_| Pattern::Ignore),
+    ))(input)
+}
+
 fn parse_identifier(input: &str) -> IResult<&str, String> {
     use complete::{alpha1, alphanumeric0};
     combinator::verify(
@@ -72,7 +79,7 @@ pub fn parse_declaration(input: &str) -> IResult<&str, Declaration> {
     // There may be some parameters to parse
     let (input, params) = sequence::preceded(
         multispace1,
-        multi::separated_list1(multispace1, parse_identifier),
+        multi::separated_list1(multispace1, parse_pattern),
     )(input)
     .unwrap_or((input, vec![]));
 
@@ -129,9 +136,9 @@ mod tests {
                         op: BinaryOperation::Application,
                         rhs: Box::new(Expr::Literal(Literal::Integer(5))),
                         lhs: Box::new(Expr::Lambda {
-                            parameter: "a".to_string(),
+                            parameter: Pattern::Id("a".to_string()),
                             body: Box::new(Expr::Lambda {
-                                parameter: "b".to_string(),
+                                parameter: Pattern::Id("b".to_string()),
                                 body: Box::new(Expr::Binary {
                                     op: BinaryOperation::Plus,
                                     lhs: Box::new(Expr::Identifier("a".to_string())),
@@ -225,6 +232,26 @@ fib x = if x == 0 then 0
                         lhs: Box::new(Expr::Identifier("x".to_string())),
                         op: BinaryOperation::Plus,
                         rhs: Box::new(Expr::Identifier("y".to_string())),
+                    })
+                }
+            ))
+        );
+    }
+
+    #[test]
+    fn parse_ignore_test() {
+        assert_eq!(
+            parse_declaration("const x _ = x"),
+            Ok((
+                "",
+                Declaration {
+                    name: "const".to_string(),
+                    expr: Box::new(Expr::Lambda {
+                        parameter: Pattern::Id("x".to_string()),
+                        body: Box::new(Expr::Lambda {
+                            parameter: Pattern::Ignore,
+                            body: Box::new(Expr::Identifier("x".to_string()))
+                        })
                     })
                 }
             ))

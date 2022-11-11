@@ -1,4 +1,4 @@
-use crate::syntax::{self, BinaryOperation, Identifier, Literal};
+use crate::syntax::{self, BinaryOperation, Identifier, Literal, Pattern};
 
 use std::collections::HashMap;
 
@@ -181,9 +181,14 @@ impl Module {
                 {
                     let param_id = self.next_ir_id();
                     let name_scope = self.add_new_name_scope();
-                    name_scope.insert(parameter.clone(), param_id.clone());
-                    self.ir_items
-                        .insert(param_id.clone(), IRItem::Identifier(parameter.clone()));
+                    match parameter {
+                        Pattern::Id(param) => {
+                            name_scope.insert(param.clone(), param_id.clone());
+                            self.ir_items
+                                .insert(param_id.clone(), IRItem::Identifier(param.clone()));
+                        }
+                        Pattern::Ignore => {}
+                    }
                     let body = self.add_expr(body);
                     self.hide_top_name_scope();
 
@@ -246,9 +251,9 @@ mod tests {
     #[test]
     fn lowers_lambda() {
         let lambda = syntax::Expr::Lambda {
-            parameter: "x".to_string(),
+            parameter: Pattern::Id("x".to_string()),
             body: Box::new(syntax::Expr::Lambda {
-                parameter: "y".to_string(),
+                parameter: Pattern::Id("y".to_string()),
                 body: Box::new(syntax::Expr::Identifier("x".to_string())),
             }),
         };
@@ -276,7 +281,7 @@ mod tests {
         let lambda = syntax::Declaration {
             name: "f".to_string(),
             expr: Box::new(syntax::Expr::Lambda {
-                parameter: "x".to_string(),
+                parameter: Pattern::Id("x".to_string()),
                 body: Box::new(syntax::Expr::Identifier("x".to_string())),
             }),
         };
@@ -355,7 +360,7 @@ mod tests {
         let inner_lambda = syntax::Declaration {
             name: "inner".to_string(),
             expr: Box::new(syntax::Expr::Lambda {
-                parameter: "x".to_string(),
+                parameter: Pattern::Id("x".to_string()),
                 body: Box::new(syntax::Expr::Identifier("x".to_string())),
             }),
         };
@@ -363,7 +368,7 @@ mod tests {
         let outer_lambda = syntax::Declaration {
             name: "outer".to_string(),
             expr: Box::new(syntax::Expr::Lambda {
-                parameter: "x".to_string(),
+                parameter: Pattern::Id("x".to_string()),
                 body: Box::new(syntax::Expr::Let {
                     inner_expr: Box::new(syntax::Expr::Binary {
                         op: syntax::BinaryOperation::Application,
@@ -390,5 +395,26 @@ mod tests {
             Some(&IRItem::Lambda { .. }) => true,
             _ => false,
         });
+    }
+
+    #[test]
+    fn lowers_ignore() {
+        let const_func = syntax::Declaration {
+            name: "const".to_string(),
+            expr: Box::new(syntax::Expr::Lambda {
+                parameter: syntax::Pattern::Id("x".to_string()),
+                body: Box::new(syntax::Expr::Lambda {
+                    parameter: syntax::Pattern::Ignore,
+                    body: Box::new(syntax::Expr::Identifier("x".to_string())),
+                }),
+            }),
+        };
+
+        let module = Module::from_decls(&[const_func]);
+        assert_eq!(module.name_scope.len(), 1);
+        println!("{:?}", module);
+
+        let x_id = module.find_identifier(&"x".to_string());
+        assert_eq!(x_id, None);
     }
 }

@@ -5,7 +5,9 @@ use nom::{
     combinator, multi, sequence, IResult,
 };
 
-use super::{parse_comment, parse_identifier, parse_separator, BinaryOperation, Expr, Literal};
+use super::{
+    parse_comment, parse_identifier, parse_pattern, parse_separator, BinaryOperation, Expr, Literal,
+};
 
 pub fn parse_expression(input: &str) -> IResult<&str, Expr> {
     let (input, _) = multi::many0(branch::alt((
@@ -45,7 +47,7 @@ fn parse_lambda(input: &str) -> IResult<&str, Expr> {
             space0,
             char('\\'),
             space0,
-            multi::separated_list1(space1, parse_identifier),
+            multi::separated_list1(space1, parse_pattern),
             space0,
             tag("->"),
             parse_expression,
@@ -203,6 +205,7 @@ fn parse_boolean_literal(input: &str) -> IResult<&str, bool> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::syntax::Pattern;
 
     #[test]
     fn parse_equality_test() {
@@ -282,7 +285,7 @@ mod tests {
                 Expr::Binary {
                     op: BinaryOperation::Application,
                     lhs: Box::new(Expr::Lambda {
-                        parameter: "x".to_string(),
+                        parameter: Pattern::Id("x".to_string()),
                         body: Box::new(Expr::Identifier("x".to_string()))
                     }),
                     rhs: Box::new(Expr::Identifier("y".to_string())),
@@ -299,7 +302,7 @@ mod tests {
             Ok((
                 "",
                 Expr::Lambda {
-                    parameter: "x".to_string(),
+                    parameter: Pattern::Id("x".to_string()),
                     body: Box::new(Expr::Identifier("x".to_string()))
                 }
             ))
@@ -309,9 +312,9 @@ mod tests {
             Ok((
                 "",
                 Expr::Lambda {
-                    parameter: "x".to_string(),
+                    parameter: Pattern::Id("x".to_string()),
                     body: Box::new(Expr::Lambda {
-                        parameter: "y".to_string(),
+                        parameter: Pattern::Id("y".to_string()),
                         body: Box::new(Expr::Identifier("x".to_string()))
                     })
                 }
