@@ -19,7 +19,7 @@ pub enum Expr {
     Literal(Literal),
     Identifier(Identifier),
     Lambda {
-        parameter: Identifier,
+        parameter: Pattern,
         body: Box<Expr>,
     },
     Binary {
@@ -36,6 +36,12 @@ pub enum Expr {
         bound_values: Vec<Declaration>,
         inner_expr: Box<Expr>,
     },
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum Pattern {
+    Id(Identifier),
+    Ignore,
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]
