@@ -25,9 +25,21 @@ const RESERVED_WORDS: &[&str] = &[
 ];
 
 fn parse_pattern(input: &str) -> IResult<&str, Pattern> {
+    let (input, _) = multispace0(input)?;
+
+    let parse_tuple = combinator::verify(
+        sequence::delimited(
+            char('('),
+            multi::separated_list1(sequence::preceded(multispace0, char(',')), parse_pattern),
+            sequence::preceded(multispace0, char(')')),
+        ),
+        |elements: &[_]| elements.len() >= 2,
+    );
+
     branch::alt((
         combinator::map(parse_identifier, Pattern::Id),
         combinator::map(char('_'), |_| Pattern::Ignore),
+        combinator::map(parse_tuple, Pattern::Tuple),
     ))(input)
 }
 
@@ -255,6 +267,16 @@ fib x = if x == 0 then 0
                     })
                 }
             ))
+        );
+    }
+
+    #[test]
+    fn parse_pattern_test() {
+        assert_eq!(parse_pattern("_"), Ok(("", Pattern::Ignore)));
+        assert_eq!(parse_pattern("x"), Ok(("", Pattern::Id("x".to_string()))));
+        assert_eq!(
+            parse_pattern("(_, _)"),
+            Ok(("", Pattern::Tuple(vec![Pattern::Ignore, Pattern::Ignore])))
         );
     }
 }

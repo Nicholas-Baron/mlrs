@@ -44,6 +44,7 @@ pub enum Expr {
 #[derive(Debug, PartialEq, Eq)]
 pub enum Pattern {
     Id(Identifier),
+    Tuple(Vec<Pattern>),
     Ignore,
 }
 

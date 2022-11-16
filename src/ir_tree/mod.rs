@@ -203,6 +203,7 @@ impl Module {
                             self.ir_items
                                 .insert(param_id.clone(), IRItem::Identifier(param.clone()));
                         }
+                        Pattern::Tuple(_) => todo!(),
                         Pattern::Ignore => {}
                     }
                     let body = self.add_expr(body);
