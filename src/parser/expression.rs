@@ -180,10 +180,28 @@ fn parse_application(input: &str) -> IResult<&str, Expr> {
     }
 }
 
+fn parse_tuple(input: &str) -> IResult<&str, Expr> {
+    combinator::map(
+        combinator::verify(
+            sequence::delimited(
+                char('('),
+                multi::separated_list1(
+                    sequence::preceded(multispace0, char(',')),
+                    parse_expression,
+                ),
+                sequence::preceded(multispace0, char(')')),
+            ),
+            |elements: &[_]| elements.len() >= 2,
+        ),
+        |elements| Expr::Tuple { elements },
+    )(input)
+}
+
 fn parse_primary_expr(input: &str) -> IResult<&str, Expr> {
     use complete::digit1;
     let (input, _) = space0(input)?;
     branch::alt((
+        parse_tuple,
         sequence::delimited(char('('), parse_expression, char(')')),
         combinator::map_res(digit1, |value: &str| {
             value.parse().map(|x| Expr::Literal(Literal::Integer(x)))
@@ -452,6 +470,24 @@ mod tests {
                         op: BinaryOperation::Application,
                     }),
                     rhs: Box::new(Expr::Identifier("y".to_string())),
+                }
+            ))
+        );
+    }
+
+    #[test]
+    fn parse_tuple_test() {
+        assert!(parse_tuple("()").is_err());
+        assert!(parse_tuple("(1)").is_err());
+        assert_eq!(
+            parse_tuple("( 1 , 2 )"),
+            Ok((
+                "",
+                Expr::Tuple {
+                    elements: vec![
+                        Expr::Literal(Literal::Integer(1)),
+                        Expr::Literal(Literal::Integer(2))
+                    ]
                 }
             ))
         );
