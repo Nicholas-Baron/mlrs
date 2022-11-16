@@ -15,6 +15,9 @@ impl IRId {
 pub enum IRItem {
     Literal(Literal),
     Identifier(Identifier),
+    Tuple {
+        elements: Vec<IRId>,
+    },
     Lambda {
         parameter: IRId,
         body: IRId,
@@ -63,6 +66,13 @@ impl IRItem {
                 }
             }
             Self::Literal(_) | Self::Identifier(_) => {}
+            Self::Tuple { elements } => {
+                elements.iter_mut().for_each(|elem| {
+                    if elem == src_id {
+                        *elem = dest_id.clone();
+                    }
+                });
+            }
         }
     }
 }
@@ -173,6 +183,12 @@ impl Module {
                     None => panic!("Could not find identifier '{}' in module {:?}", ident, self),
                 }
             }
+            Expr::Tuple { elements } => (
+                self.next_ir_id(),
+                IRItem::Tuple {
+                    elements: elements.iter().map(|expr| self.add_expr(expr)).collect(),
+                },
+            ),
             Expr::Lambda { body, parameter } => (
                 self.next_ir_id(),
                 // NOTE: The initalization order here matters.
