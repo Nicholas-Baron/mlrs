@@ -18,6 +18,9 @@ pub struct Declaration {
 pub enum Expr {
     Literal(Literal),
     Identifier(Identifier),
+    Tuple {
+        elements: Vec<Expr>,
+    },
     Lambda {
         parameter: Pattern,
         body: Box<Expr>,

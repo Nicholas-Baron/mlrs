@@ -33,6 +33,7 @@ fn eval(module: &Module, id: IRId, environment: &Environment) -> Expr {
         ident @ IRItem::Identifier(_) => {
             unreachable!("tried to evaluate {ident:?} that is not in {environment:?}")
         }
+        IRItem::Tuple { .. } => todo!(),
         IRItem::Literal(lit) => Expr::Literal(lit),
         IRItem::Lambda { parameter, body } => Expr::Closure {
             parameter,
