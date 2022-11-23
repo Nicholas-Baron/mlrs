@@ -4,7 +4,7 @@ use std::{fs, io};
 use clap::{ArgGroup, Parser};
 
 mod execute;
-use execute::evaluate_id;
+use execute::{evaluate_id, EvaluationResult};
 mod ir_tree;
 mod parser;
 mod syntax;
@@ -96,13 +96,26 @@ fn interact_with(input: io::Stdin, mut ir_mod: ir_tree::Module, debug: bool) {
     }
 }
 
-fn print_result(result: Option<syntax::Literal>, ir_mod: Option<&ir_tree::Module>) {
-    if let Some(result) = result {
-        if let Some(ir_mod) = ir_mod {
-            println!("{:?}", ir_mod);
-            println!("{:?}", result);
-        } else {
-            println!("{}", result);
+fn print_result(result: EvaluationResult, ir_mod: Option<&ir_tree::Module>) {
+    if let Some(ir_mod) = ir_mod {
+        println!("{:?}", ir_mod);
+    }
+
+    match result {
+        EvaluationResult::NonLiteral => {}
+        EvaluationResult::Literal(lit) => println!("{}", lit),
+        EvaluationResult::Tuple(tup) => {
+            print!("(");
+            let mut first = true;
+            for elem in tup {
+                if first {
+                    first = false;
+                } else {
+                    print!(", ");
+                }
+                print!("{}", elem);
+            }
+            println!(")");
         }
     }
 }
@@ -142,7 +155,7 @@ mod test {
 
         let result = evaluate_id(&ir_mod, expr_id);
         println!("{:?}", result);
-        assert_eq!(result, Some(Literal::Integer(15)));
+        assert_eq!(result, EvaluationResult::Literal(Literal::Integer(15)));
     }
 
     #[test]
@@ -171,7 +184,7 @@ mod test {
 
         let result = evaluate_id(&ir_mod, expr_id);
         println!("{:?}", result);
-        assert_eq!(result, Some(Literal::Integer(15)));
+        assert_eq!(result, EvaluationResult::Literal(Literal::Integer(15)));
     }
 
     #[test]
@@ -200,7 +213,7 @@ mod test {
 
         let result = evaluate_id(&ir_mod, expr_id);
         println!("{:?}", result);
-        assert_eq!(result, Some(Literal::Integer(20)));
+        assert_eq!(result, EvaluationResult::Literal(Literal::Integer(20)));
     }
 
     #[test]
@@ -219,7 +232,7 @@ mod test {
 
         let result = evaluate_id(&ir_mod, expr_id);
         println!("{:?}", result);
-        assert_eq!(result, Some(Literal::Integer(5)));
+        assert_eq!(result, EvaluationResult::Literal(Literal::Integer(5)));
 
         let line = "if false then 5 else 10";
         let expr = match parser::parse_expression(&line) {
@@ -233,7 +246,7 @@ mod test {
 
         let result = evaluate_id(&ir_mod, expr_id);
         println!("{:?}", result);
-        assert_eq!(result, Some(Literal::Integer(10)));
+        assert_eq!(result, EvaluationResult::Literal(Literal::Integer(10)));
     }
 
     #[test]
@@ -252,7 +265,7 @@ mod test {
 
         let result = evaluate_id(&ir_mod, expr_id);
         println!("{:?}", result);
-        assert_eq!(result, Some(Literal::Integer(10)));
+        assert_eq!(result, EvaluationResult::Literal(Literal::Integer(10)));
 
         let line = "x = 10";
         let decl = match parser::parse_declaration(&line) {
@@ -266,7 +279,7 @@ mod test {
 
         let result = evaluate_id(&ir_mod, decl_id);
         println!("{:?}", result);
-        assert_eq!(result, Some(Literal::Integer(10)));
+        assert_eq!(result, EvaluationResult::Literal(Literal::Integer(10)));
     }
 
     #[test]
@@ -300,6 +313,6 @@ mod test {
 
         let result = evaluate_id(&ir_mod, expr_id);
         println!("{:?}", result);
-        assert_eq!(result, Some(Literal::Integer(13)));
+        assert_eq!(result, EvaluationResult::Literal(Literal::Integer(13)));
     }
 }
