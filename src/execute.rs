@@ -2,6 +2,7 @@ use crate::ir_tree::{IRId, IRItem, Module};
 use crate::syntax::{BinaryOperation, Literal};
 
 use std::collections::HashMap;
+use std::fmt::Display;
 
 type Environment = HashMap<IRId, Expr>;
 
@@ -17,12 +18,50 @@ enum Expr {
     Tuple(Vec<Expr>),
 }
 
-pub fn evaluate_id(module: &Module, id: IRId) -> Option<Literal> {
-    let environment = Environment::default();
-    match eval(module, id, &environment) {
-        Expr::Literal(exp) => Some(exp),
-        _ => None,
+#[derive(Debug, PartialEq, Eq)]
+pub enum EvaluationResult {
+    NonLiteral,
+    Literal(Literal),
+    Tuple(Vec<EvaluationResult>),
+}
+
+impl From<Expr> for EvaluationResult {
+    fn from(expr: Expr) -> Self {
+        match expr {
+            Expr::Literal(exp) => EvaluationResult::Literal(exp),
+            Expr::Tuple(tuple) => {
+                EvaluationResult::Tuple(tuple.into_iter().map(|e| e.into()).collect())
+            }
+            _ => EvaluationResult::NonLiteral,
+        }
     }
+}
+
+impl Display for EvaluationResult {
+    fn fmt(&self, fmtr: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        match self {
+            EvaluationResult::NonLiteral => fmtr.write_str("_"),
+            EvaluationResult::Literal(lit) => fmtr.write_fmt(format_args!("{}", lit)),
+            EvaluationResult::Tuple(tup) => {
+                fmtr.write_str("(")?;
+                let mut first = true;
+                for elem in tup {
+                    if first {
+                        first = false;
+                    } else {
+                        fmtr.write_str(", ")?;
+                    }
+                    fmtr.write_fmt(format_args!("{}", elem))?;
+                }
+                fmtr.write_str(")")
+            }
+        }
+    }
+}
+
+pub fn evaluate_id(module: &Module, id: IRId) -> EvaluationResult {
+    let environment = Environment::default();
+    eval(module, id, &environment).into()
 }
 
 fn eval(module: &Module, id: IRId, environment: &Environment) -> Expr {
