@@ -14,6 +14,7 @@ enum Expr {
         body: IRId,
         environment: Environment,
     },
+    Tuple(Vec<Expr>),
 }
 
 pub fn evaluate_id(module: &Module, id: IRId) -> Option<Literal> {
@@ -33,7 +34,12 @@ fn eval(module: &Module, id: IRId, environment: &Environment) -> Expr {
         ident @ IRItem::Identifier(_) => {
             unreachable!("tried to evaluate {ident:?} that is not in {environment:?}")
         }
-        IRItem::Tuple { .. } => todo!(),
+        IRItem::Tuple { elements } => Expr::Tuple(
+            elements
+                .into_iter()
+                .map(|e| eval(module, e, environment))
+                .collect(),
+        ),
         IRItem::Literal(lit) => Expr::Literal(lit),
         IRItem::Lambda { parameter, body } => Expr::Closure {
             parameter,
