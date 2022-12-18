@@ -1,2 +1,13 @@
 
 (10, 5 * 2)
+
+func tup = match tup
+    case (0, 0) => 1
+    case (0, _) => 2
+    case (_, 0) => 3
+    case _ => 4
+
+func (0, 0)
+func (0, 1)
+func (1, 0)
+func (1, 1)

@@ -16,11 +16,43 @@ pub fn parse_expression(input: &str) -> IResult<&str, Expr> {
         combinator::value((), multispace1),
     )))(input)?;
     branch::alt((
+        parse_match_expression,
         parse_let_expression,
         parse_lambda,
         parse_if_expr,
         parse_equality,
     ))(input)
+}
+
+fn parse_match_expression(input: &str) -> IResult<&str, Expr> {
+    use crate::syntax::Pattern;
+    fn parse_match_arms(input: &str) -> IResult<&str, Vec<(Pattern, Expr)>> {
+        multi::many1(combinator::map(
+            sequence::tuple((
+                multispace0,
+                tag("case"),
+                multispace1,
+                parse_pattern,
+                sequence::delimited(multispace0, tag("=>"), multispace0),
+                parse_expression,
+            )),
+            |(_, _case, _, pattern, _, result)| (pattern, result),
+        ))(input)
+    }
+
+    combinator::map(
+        sequence::tuple((
+            tag("match"),
+            multispace1,
+            parse_expression,
+            multispace1,
+            parse_match_arms,
+        )),
+        |(_match, _, scrutinee, _, arms)| Expr::Match {
+            scrutinee: Box::new(scrutinee),
+            arms,
+        },
+    )(input)
 }
 
 fn parse_let_expression(input: &str) -> IResult<&str, Expr> {
@@ -533,6 +565,51 @@ mod tests {
                         true_value: Box::new(Expr::Identifier("a".to_string())),
                         false_value: Box::new(Expr::Identifier("b".to_string())),
                     }),
+                }
+            ))
+        );
+    }
+
+    #[test]
+    fn parse_match_expression_test() {
+        assert_eq!(
+            parse_expression("match x case _ => 5"),
+            Ok((
+                "",
+                Expr::Match {
+                    scrutinee: Box::new(Expr::Identifier("x".to_string())),
+                    arms: vec![(Pattern::Ignore, Expr::Literal(Literal::Integer(5)))]
+                }
+            ))
+        );
+
+        assert_eq!(
+            parse_expression("match x case (_, _) => 10"),
+            Ok((
+                "",
+                Expr::Match {
+                    scrutinee: Box::new(Expr::Identifier("x".to_string())),
+                    arms: vec![(
+                        Pattern::Tuple(vec![Pattern::Ignore, Pattern::Ignore]),
+                        Expr::Literal(Literal::Integer(10))
+                    )]
+                }
+            ))
+        );
+
+        assert_eq!(
+            parse_expression("match x case (_, _) => 10 \n case _ => 5"),
+            Ok((
+                "",
+                Expr::Match {
+                    scrutinee: Box::new(Expr::Identifier("x".to_string())),
+                    arms: vec![
+                        (
+                            Pattern::Tuple(vec![Pattern::Ignore, Pattern::Ignore]),
+                            Expr::Literal(Literal::Integer(10))
+                        ),
+                        (Pattern::Ignore, Expr::Literal(Literal::Integer(5)))
+                    ]
                 }
             ))
         );

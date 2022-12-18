@@ -39,6 +39,10 @@ pub enum Expr {
         bound_values: Vec<Declaration>,
         inner_expr: Box<Expr>,
     },
+    Match {
+        scrutinee: Box<Expr>,
+        arms: Vec<(Pattern, Expr)>,
+    },
 }
 
 #[derive(Debug, PartialEq, Eq)]

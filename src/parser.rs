@@ -21,7 +21,7 @@ fn parse_separator(input: &str) -> IResult<&str, ()> {
 }
 
 const RESERVED_WORDS: &[&str] = &[
-    "if", "then", "else", "true", "True", "false", "False", "let", "in",
+    "if", "then", "else", "true", "True", "false", "False", "let", "in", "match", "case",
 ];
 
 fn parse_pattern(input: &str) -> IResult<&str, Pattern> {
