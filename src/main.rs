@@ -39,7 +39,7 @@ fn ir_from_file(filename: &str, debug: bool) -> ir_tree::Module {
     };
 
     let mut ir_mod = ir_tree::Module::new();
-    match parser::parse_decl_or_expr_list(&file_data) {
+    match parser::parse_whole_file(&file_data) {
         Ok((remaining, items)) => {
             if debug {
                 println!("{:?} (remaining: {:?})", items, remaining);
