@@ -64,10 +64,14 @@ fn parse_comment(input: &str) -> IResult<&str, ()> {
     )(input)
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum DeclOrExpr {
     Decl(Declaration),
     Expr(Expr),
+}
+
+pub fn parse_whole_file(input: &str) -> IResult<&str, Vec<DeclOrExpr>> {
+    combinator::all_consuming(sequence::terminated(parse_decl_or_expr_list, multispace0))(input)
 }
 
 pub fn parse_decl_or_expr(input: &str) -> IResult<&str, DeclOrExpr> {
@@ -117,6 +121,81 @@ pub fn parse_declaration(input: &str) -> IResult<&str, Declaration> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parse_whole_file_test() {
+        assert_eq!(
+            parse_whole_file(
+                r#"
+(10, 0)
+
+func x = x * 2
+            "#,
+            ),
+            Ok((
+                "",
+                vec![
+                    DeclOrExpr::Expr(Expr::Tuple {
+                        elements: vec![
+                            Expr::Literal(Literal::Integer(10)),
+                            Expr::Literal(Literal::Integer(0))
+                        ]
+                    }),
+                    DeclOrExpr::Decl(Declaration {
+                        name: "func".to_string(),
+                        expr: Box::new(Expr::Lambda {
+                            parameter: Pattern::Id("x".to_string()),
+                            body: Box::new(Expr::Binary {
+                                lhs: Box::new(Expr::Identifier("x".to_string())),
+                                rhs: Box::new(Expr::Literal(Literal::Integer(2))),
+                                op: BinaryOperation::Mult
+                            })
+                        })
+                    })
+                ]
+            ))
+        );
+
+        assert_eq!(
+            parse_whole_file(
+                r#"
+(10, 0)
+
+func x = match x
+    case _ => 10
+
+(9, 1)
+            "#,
+            ),
+            Ok((
+                "",
+                vec![
+                    DeclOrExpr::Expr(Expr::Tuple {
+                        elements: vec![
+                            Expr::Literal(Literal::Integer(10)),
+                            Expr::Literal(Literal::Integer(0))
+                        ]
+                    }),
+                    DeclOrExpr::Decl(Declaration {
+                        name: "func".to_string(),
+                        expr: Box::new(Expr::Lambda {
+                            parameter: Pattern::Id("x".to_string()),
+                            body: Box::new(Expr::Match {
+                                scrutinee: Box::new(Expr::Identifier("x".to_string())),
+                                arms: vec![(Pattern::Ignore, Expr::Literal(Literal::Integer(10)))]
+                            })
+                        })
+                    }),
+                    DeclOrExpr::Expr(Expr::Tuple {
+                        elements: vec![
+                            Expr::Literal(Literal::Integer(9)),
+                            Expr::Literal(Literal::Integer(1))
+                        ]
+                    }),
+                ]
+            ))
+        );
+    }
 
     #[test]
     fn parse_identifier_test() {
