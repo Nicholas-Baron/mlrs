@@ -249,7 +249,7 @@ impl Module {
                 self.hide_top_name_scope();
                 return inner_expr;
             }
-            _ => todo!(),
+            _ => todo!("Unimplemented lowering for {expr:?}"),
         };
         self.ir_items.insert(expr_id.clone(), ir_expr);
         expr_id
