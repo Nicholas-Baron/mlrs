@@ -1,12 +1,13 @@
 use nom::{
     branch,
     bytes::complete::tag,
-    character::complete::{self, char, multispace0, multispace1, space0, space1},
+    character::complete::{char, multispace0, multispace1, space0, space1},
     combinator, multi, sequence, IResult,
 };
 
 use super::{
-    parse_comment, parse_identifier, parse_pattern, parse_separator, BinaryOperation, Expr, Literal,
+    parse_comment, parse_identifier, parse_literal, parse_pattern, parse_separator,
+    BinaryOperation, Expr,
 };
 
 pub fn parse_expression(input: &str) -> IResult<&str, Expr> {
@@ -230,32 +231,19 @@ fn parse_tuple(input: &str) -> IResult<&str, Expr> {
 }
 
 fn parse_primary_expr(input: &str) -> IResult<&str, Expr> {
-    use complete::digit1;
     let (input, _) = space0(input)?;
     branch::alt((
         parse_tuple,
         sequence::delimited(char('('), parse_expression, char(')')),
-        combinator::map_res(digit1, |value: &str| {
-            value.parse().map(|x| Expr::Literal(Literal::Integer(x)))
-        }),
-        combinator::map(parse_boolean_literal, |x| {
-            Expr::Literal(Literal::Boolean(x))
-        }),
+        combinator::map(parse_literal, Expr::Literal),
         combinator::map(parse_identifier, Expr::Identifier),
     ))(input)
-}
-
-fn parse_boolean_literal(input: &str) -> IResult<&str, bool> {
-    combinator::map_res(
-        branch::alt((tag("true"), tag("True"), tag("false"), tag("False"))),
-        |value: &str| value.to_lowercase().parse(),
-    )(input)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::syntax::Pattern;
+    use crate::syntax::{Literal, Pattern};
 
     #[test]
     fn parse_equality_test() {

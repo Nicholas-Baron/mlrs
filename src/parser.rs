@@ -24,6 +24,21 @@ const RESERVED_WORDS: &[&str] = &[
     "if", "then", "else", "true", "True", "false", "False", "let", "in", "match", "case",
 ];
 
+fn parse_boolean_literal(input: &str) -> IResult<&str, bool> {
+    combinator::map_res(
+        branch::alt((tag("true"), tag("True"), tag("false"), tag("False"))),
+        |value: &str| value.to_lowercase().parse(),
+    )(input)
+}
+
+fn parse_literal(input: &str) -> IResult<&str, Literal> {
+    use complete::digit1;
+    branch::alt((
+        combinator::map_res(digit1, |value: &str| value.parse().map(Literal::Integer)),
+        combinator::map(parse_boolean_literal, Literal::Boolean),
+    ))(input)
+}
+
 fn parse_pattern(input: &str) -> IResult<&str, Pattern> {
     let (input, _) = multispace0(input)?;
 
