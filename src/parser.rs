@@ -52,6 +52,7 @@ fn parse_pattern(input: &str) -> IResult<&str, Pattern> {
     );
 
     branch::alt((
+        combinator::map(parse_literal, Pattern::Literal),
         combinator::map(parse_identifier, Pattern::Id),
         combinator::map(char('_'), |_| Pattern::Ignore),
         combinator::map(parse_tuple, Pattern::Tuple),
@@ -367,6 +368,10 @@ fib x = if x == 0 then 0
     #[test]
     fn parse_pattern_test() {
         assert_eq!(parse_pattern("_"), Ok(("", Pattern::Ignore)));
+        assert_eq!(
+            parse_pattern("0"),
+            Ok(("", Pattern::Literal(Literal::Integer(0))))
+        );
         assert_eq!(parse_pattern("x"), Ok(("", Pattern::Id("x".to_string()))));
         assert_eq!(
             parse_pattern("(_, _)"),

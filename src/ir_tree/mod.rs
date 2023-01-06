@@ -203,6 +203,7 @@ impl Module {
                             self.ir_items
                                 .insert(param_id.clone(), IRItem::Identifier(param.clone()));
                         }
+                        Pattern::Literal(_) => todo!(),
                         Pattern::Tuple(_) => todo!(),
                         Pattern::Ignore => {}
                     }
