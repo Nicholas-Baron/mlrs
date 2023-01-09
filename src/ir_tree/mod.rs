@@ -320,12 +320,17 @@ impl Module {
             Pattern::Ignore => (IRPattern::Ignore, None),
             Pattern::Literal(lit) => (IRPattern::Literal(lit.clone()), None),
             Pattern::Tuple(elements) => {
-                let (patterns, bound_names) =
+                let (patterns, bound_names): (_, Vec<_>) =
                     elements.iter().map(|elem| self.add_pattern(elem)).unzip();
 
                 (
                     IRPattern::Tuple(patterns),
-                    super::utils::join_hashmaps(bound_names),
+                    Some(super::utils::join_hashmaps(
+                        bound_names
+                            .into_iter()
+                            .filter_map(|binding| binding)
+                            .collect(),
+                    )),
                 )
             }
         }

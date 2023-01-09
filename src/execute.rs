@@ -115,18 +115,54 @@ fn eval(module: &Module, id: IRId, environment: &Environment) -> Expr {
         },
         IRItem::Match { scrutinee, arms } => {
             let scrutinee = eval(module, scrutinee, environment);
-            let selected = arms
+            let (selected_arm, env) = arms
                 .into_iter()
-                .filter(|(pattern, _)| match_pattern(&scrutinee, pattern))
-                .next();
+                .find_map(|(pattern, expr)| {
+                    if let Some(env) = match_pattern(module, &scrutinee, &pattern) {
+                        Some((expr, env))
+                    } else {
+                        None
+                    }
+                })
+                .expect("match expression was not exhaustive");
 
-            eval(module, selected.unwrap().1, environment)
+            eval(module, selected_arm, &env)
         }
     }
 }
 
-fn match_pattern(scrutinee: &Expr, pattern: &IRPattern) -> bool {
-    todo!()
+/// `None` when no match occurs.
+/// `Some(env)` when a match connects, with `env` containing the environment
+fn match_pattern(module: &Module, scrutinee: &Expr, pattern: &IRPattern) -> Option<Environment> {
+    match (scrutinee, pattern) {
+        (Expr::Suspend((expr, env)), _) => {
+            match_pattern(module, &eval(module, expr.clone(), &env), pattern)
+        }
+        (_, IRPattern::Ignore) => Some(Default::default()),
+        (Expr::Tuple(lhs), IRPattern::Tuple(rhs)) => {
+            if lhs.len() != rhs.len() {
+                return None;
+            }
+            let bindings: Vec<_> = std::iter::zip(lhs, rhs)
+                .map(|(l, r)| match_pattern(module, l, r))
+                .collect();
+
+            if bindings.iter().any(|binding| binding.is_none()) {
+                None
+            } else {
+                Some(super::utils::join_hashmaps(
+                    bindings.into_iter().filter_map(|binding| binding).collect(),
+                ))
+            }
+        }
+        (Expr::Literal(lhs), IRPattern::Literal(rhs)) => (lhs == rhs).then(Default::default),
+        (lhs, IRPattern::Identifier(rhs)) => {
+            let mut env = Environment::default();
+            env.insert(rhs.clone(), lhs.clone());
+            Some(env)
+        }
+        _ => None,
+    }
 }
 
 fn apply(module: &Module, lhs: Expr, rhs: Expr) -> Expr {
