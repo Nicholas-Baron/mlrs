@@ -1,4 +1,4 @@
-use crate::ir_tree::{IRId, IRItem, Module};
+use crate::ir_tree::{IRId, IRItem, IRPattern, Module};
 use crate::syntax::{BinaryOperation, Literal};
 
 use std::collections::HashMap;
@@ -113,7 +113,20 @@ fn eval(module: &Module, id: IRId, environment: &Environment) -> Expr {
                 eval(module, rhs, environment),
             ),
         },
+        IRItem::Match { scrutinee, arms } => {
+            let scrutinee = eval(module, scrutinee, environment);
+            let selected = arms
+                .into_iter()
+                .filter(|(pattern, _)| match_pattern(&scrutinee, pattern))
+                .next();
+
+            eval(module, selected.unwrap().1, environment)
+        }
     }
+}
+
+fn match_pattern(scrutinee: &Expr, pattern: &IRPattern) -> bool {
+    todo!()
 }
 
 fn apply(module: &Module, lhs: Expr, rhs: Expr) -> Expr {

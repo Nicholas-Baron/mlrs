@@ -11,6 +11,14 @@ impl IRId {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum IRPattern {
+    Ignore,
+    Literal(Literal),
+    Identifier(IRId),
+    Tuple(Vec<IRPattern>),
+}
+
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum IRItem {
     Literal(Literal),
@@ -31,6 +39,10 @@ pub enum IRItem {
         condition: IRId,
         true_value: IRId,
         false_value: IRId,
+    },
+    Match {
+        scrutinee: IRId,
+        arms: Vec<(IRPattern, IRId)>,
     },
 }
 
@@ -70,6 +82,22 @@ impl IRItem {
                 elements.iter_mut().for_each(|elem| {
                     if elem == src_id {
                         *elem = dest_id.clone();
+                    }
+                });
+            }
+            Self::Match { scrutinee, arms } => {
+                if scrutinee == src_id {
+                    *scrutinee = dest_id.clone();
+                }
+                arms.iter_mut().for_each(|(pattern, expr)| {
+                    if let IRPattern::Identifier(id) = pattern {
+                        if id == src_id {
+                            *id = dest_id.clone();
+                        }
+                    }
+
+                    if expr == src_id {
+                        *expr = dest_id.clone();
                     }
                 });
             }
@@ -250,10 +278,54 @@ impl Module {
                 self.hide_top_name_scope();
                 return inner_expr;
             }
+            Expr::Match { scrutinee, arms } => {
+                let scrutinee = self.add_expr(&scrutinee);
+                let lowered_arms = arms
+                    .iter()
+                    .map(|(pattern, expr)| {
+                        let (pattern, bound_names) = self.add_pattern(pattern);
+                        let inner_expr = if let Some(bound_names) = bound_names {
+                            let name_scope = self.add_new_name_scope();
+                            *name_scope = bound_names;
+                            let inner_expr = self.add_expr(expr);
+                            self.hide_top_name_scope();
+                            inner_expr
+                        } else {
+                            self.add_expr(expr)
+                        };
+                        (pattern, inner_expr)
+                    })
+                    .collect();
+                (
+                    self.next_ir_id(),
+                    IRItem::Match {
+                        scrutinee,
+                        arms: lowered_arms,
+                    },
+                )
+            }
+            #[allow(unreachable_patterns)]
             _ => todo!("Unimplemented lowering for {expr:?}"),
         };
         self.ir_items.insert(expr_id.clone(), ir_expr);
         expr_id
+    }
+
+    fn add_pattern(
+        &mut self,
+        pattern: &syntax::Pattern,
+    ) -> (IRPattern, Option<HashMap<String, IRId>>) {
+        match pattern {
+            Pattern::Id(_) => todo!(),
+            Pattern::Ignore => (IRPattern::Ignore, None),
+            Pattern::Literal(lit) => (IRPattern::Literal(lit.clone()), None),
+            Pattern::Tuple(elements) => {
+                let (patterns, bound_names) =
+                    elements.iter().map(|elem| self.add_pattern(elem)).unzip();
+
+                (IRPattern::Tuple(patterns), join_bound_names(bound_names))
+            }
+        }
     }
 
     fn next_ir_id(&mut self) -> IRId {
@@ -261,6 +333,26 @@ impl Module {
         self.next_ir_id.inc();
         id
     }
+}
+
+fn join_bound_names(bindings: Vec<Option<HashMap<String, IRId>>>) -> Option<HashMap<String, IRId>> {
+    bindings
+        .into_iter()
+        .fold(None, |acc, binding_set| match (acc, binding_set) {
+            (None, None) => None,
+            (None, binding_set @ Some(_)) => binding_set,
+            (acc @ Some(_), None) => acc,
+            (Some(mut acc), Some(mut binding_set)) => {
+                for (name, id) in binding_set.drain() {
+                    if acc.contains_key(&name) {
+                        eprintln!("Found duplicate name binding in pattern: {name}");
+                    } else {
+                        acc.insert(name, id);
+                    }
+                }
+                Some(acc)
+            }
+        })
 }
 
 #[cfg(test)]
