@@ -8,6 +8,7 @@ use execute::{evaluate_id, EvaluationResult};
 mod ir_tree;
 mod parser;
 mod syntax;
+mod utils;
 
 #[derive(Parser)]
 #[structopt(name = "mlrs", about = "A small ML-like langauge written in Rust")]

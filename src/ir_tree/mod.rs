@@ -323,7 +323,10 @@ impl Module {
                 let (patterns, bound_names) =
                     elements.iter().map(|elem| self.add_pattern(elem)).unzip();
 
-                (IRPattern::Tuple(patterns), join_bound_names(bound_names))
+                (
+                    IRPattern::Tuple(patterns),
+                    super::utils::join_hashmaps(bound_names),
+                )
             }
         }
     }
@@ -333,26 +336,6 @@ impl Module {
         self.next_ir_id.inc();
         id
     }
-}
-
-fn join_bound_names(bindings: Vec<Option<HashMap<String, IRId>>>) -> Option<HashMap<String, IRId>> {
-    bindings
-        .into_iter()
-        .fold(None, |acc, binding_set| match (acc, binding_set) {
-            (None, None) => None,
-            (None, binding_set @ Some(_)) => binding_set,
-            (acc @ Some(_), None) => acc,
-            (Some(mut acc), Some(mut binding_set)) => {
-                for (name, id) in binding_set.drain() {
-                    if acc.contains_key(&name) {
-                        eprintln!("Found duplicate name binding in pattern: {name}");
-                    } else {
-                        acc.insert(name, id);
-                    }
-                }
-                Some(acc)
-            }
-        })
 }
 
 #[cfg(test)]
