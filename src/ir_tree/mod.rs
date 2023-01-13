@@ -316,7 +316,12 @@ impl Module {
         pattern: &syntax::Pattern,
     ) -> (IRPattern, Option<HashMap<String, IRId>>) {
         match pattern {
-            Pattern::Id(_) => todo!(),
+            Pattern::Id(id) => {
+                let mut bound_names = HashMap::new();
+                let ir_id = self.next_ir_id();
+                bound_names.insert(id.clone(), ir_id.clone());
+                (IRPattern::Identifier(ir_id), Some(bound_names))
+            }
             Pattern::Ignore => (IRPattern::Ignore, None),
             Pattern::Literal(lit) => (IRPattern::Literal(lit.clone()), None),
             Pattern::Tuple(elements) => {
