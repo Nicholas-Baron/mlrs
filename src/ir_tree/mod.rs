@@ -279,7 +279,7 @@ impl Module {
                 return inner_expr;
             }
             Expr::Match { scrutinee, arms } => {
-                let scrutinee = self.add_expr(&scrutinee);
+                let scrutinee = self.add_expr(scrutinee);
                 let lowered_arms = arms
                     .iter()
                     .map(|(pattern, expr)| {
@@ -331,10 +331,7 @@ impl Module {
                 (
                     IRPattern::Tuple(patterns),
                     Some(super::utils::join_hashmaps(
-                        bound_names
-                            .into_iter()
-                            .filter_map(|binding| binding)
-                            .collect(),
+                        bound_names.into_iter().flatten().collect(),
                     )),
                 )
             }

@@ -118,11 +118,7 @@ fn eval(module: &Module, id: IRId, environment: &Environment) -> Expr {
             let (selected_arm, env) = arms
                 .into_iter()
                 .find_map(|(pattern, expr)| {
-                    if let Some(env) = match_pattern(module, &scrutinee, &pattern) {
-                        Some((expr, env))
-                    } else {
-                        None
-                    }
+                    match_pattern(module, &scrutinee, &pattern).map(|env| (expr, env))
                 })
                 .expect("match expression was not exhaustive");
 
@@ -136,7 +132,7 @@ fn eval(module: &Module, id: IRId, environment: &Environment) -> Expr {
 fn match_pattern(module: &Module, scrutinee: &Expr, pattern: &IRPattern) -> Option<Environment> {
     match (scrutinee, pattern) {
         (Expr::Suspend((expr, env)), _) => {
-            match_pattern(module, &eval(module, expr.clone(), &env), pattern)
+            match_pattern(module, &eval(module, expr.clone(), env), pattern)
         }
         (_, IRPattern::Ignore) => Some(Default::default()),
         (Expr::Tuple(lhs), IRPattern::Tuple(rhs)) => {
@@ -151,7 +147,7 @@ fn match_pattern(module: &Module, scrutinee: &Expr, pattern: &IRPattern) -> Opti
                 None
             } else {
                 Some(super::utils::join_hashmaps(
-                    bindings.into_iter().filter_map(|binding| binding).collect(),
+                    bindings.into_iter().flatten().collect(),
                 ))
             }
         }
