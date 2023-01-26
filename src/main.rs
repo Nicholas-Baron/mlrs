@@ -88,12 +88,16 @@ fn interact_with(input: io::Stdin, mut ir_mod: ir_tree::Module, debug: bool) {
             }
         };
 
+        let is_expr = matches!(decl_or_expr, parser::DeclOrExpr::Expr(_));
+
         let new_id = match decl_or_expr {
             parser::DeclOrExpr::Expr(expr) => ir_mod.add_expr(&expr),
             parser::DeclOrExpr::Decl(decl) => ir_mod.add_decl(&decl),
         };
 
-        print_result(evaluate_id(&ir_mod, new_id), debug.then_some(&ir_mod));
+        if is_expr {
+            print_result(evaluate_id(&ir_mod, new_id), debug.then_some(&ir_mod));
+        }
     }
 }
 
