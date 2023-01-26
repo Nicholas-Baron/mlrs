@@ -107,7 +107,7 @@ fn print_result(result: EvaluationResult, ir_mod: Option<&ir_tree::Module>) {
     }
 
     match result {
-        EvaluationResult::NonLiteral => {}
+        EvaluationResult::NonLiteral => unreachable!(),
         EvaluationResult::Literal(lit) => println!("{}", lit),
         EvaluationResult::Tuple(tup) => {
             print!("(");
