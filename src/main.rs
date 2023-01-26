@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::{fs, io};
 
 use clap::{ArgGroup, Parser};
@@ -30,7 +30,7 @@ struct Options {
     interactive: bool,
 }
 
-fn ir_from_file(filename: &str, debug: bool) -> ir_tree::Module {
+fn ir_from_file(filename: &Path, debug: bool) -> ir_tree::Module {
     let file_data = match fs::read_to_string(filename) {
         Ok(data) => data,
         Err(e) => {
@@ -128,11 +128,10 @@ fn print_result(result: EvaluationResult, ir_mod: Option<&ir_tree::Module>) {
 fn main() {
     let opts = Options::parse();
 
-    let ir_mod = if let Some(ref filename) = opts.input_file {
-        ir_from_file(filename.to_str().unwrap(), opts.debug)
-    } else {
-        Default::default()
-    };
+    let ir_mod = opts
+        .input_file
+        .map(|filename| ir_from_file(filename.as_path(), opts.debug))
+        .unwrap_or_default();
 
     if opts.interactive {
         interact_with(io::stdin(), ir_mod, opts.debug);
