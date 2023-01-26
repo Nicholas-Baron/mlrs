@@ -10,4 +10,4 @@ debug = true
 
 [dependencies]
 nom = "7.1.0"
-clap = { version = "4.0.10", features = ["derive", "suggestions", "color"] }
+clap = { version = "4.1.4", features = ["derive", "suggestions", "color"] }
