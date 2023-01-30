@@ -213,6 +213,17 @@ fn parse_application(input: &str) -> IResult<&str, Expr> {
     }
 }
 
+fn parse_array(input: &str) -> IResult<&str, Expr> {
+    combinator::map(
+        sequence::delimited(
+            char('['),
+            multi::separated_list0(char(','), parse_expression),
+            char(']'),
+        ),
+        |elements| Expr::Array { elements },
+    )(input)
+}
+
 fn parse_tuple(input: &str) -> IResult<&str, Expr> {
     combinator::map(
         combinator::verify(
@@ -234,6 +245,7 @@ fn parse_primary_expr(input: &str) -> IResult<&str, Expr> {
     let (input, _) = space0(input)?;
     branch::alt((
         parse_tuple,
+        parse_array,
         sequence::delimited(char('('), parse_expression, char(')')),
         combinator::map(parse_literal, Expr::Literal),
         combinator::map(parse_identifier, Expr::Identifier),
@@ -511,6 +523,39 @@ mod tests {
                 }
             ))
         );
+    }
+
+    #[test]
+    fn parse_array_test() {
+        assert_eq!(
+            parse_array("[]"),
+            IResult::Ok(("", Expr::Array { elements: vec![] }))
+        );
+
+        assert_eq!(
+            parse_array("[1]"),
+            IResult::Ok((
+                "",
+                Expr::Array {
+                    elements: vec![Expr::Literal(Literal::Integer(1))]
+                }
+            ))
+        );
+
+        assert_eq!(
+            parse_array("[1, false]"),
+            IResult::Ok((
+                "",
+                Expr::Array {
+                    elements: vec![
+                        Expr::Literal(Literal::Integer(1)),
+                        Expr::Literal(Literal::Boolean(false))
+                    ]
+                }
+            ))
+        );
+
+        assert_eq!(parse_array("[1,2]"), parse_array("[1, 2]"))
     }
 
     #[test]

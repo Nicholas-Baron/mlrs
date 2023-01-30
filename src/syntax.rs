@@ -21,6 +21,9 @@ pub enum Expr {
     Tuple {
         elements: Vec<Expr>,
     },
+    Array {
+        elements: Vec<Expr>,
+    },
     Lambda {
         parameter: Pattern,
         body: Box<Expr>,
