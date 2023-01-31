@@ -26,6 +26,9 @@ pub enum IRItem {
     Tuple {
         elements: Vec<IRId>,
     },
+    Array {
+        elements: Vec<IRId>,
+    },
     Lambda {
         parameter: IRId,
         body: IRId,
@@ -78,7 +81,7 @@ impl IRItem {
                 }
             }
             Self::Literal(_) | Self::Identifier(_) => {}
-            Self::Tuple { elements } => {
+            Self::Array { elements } | Self::Tuple { elements } => {
                 elements.iter_mut().for_each(|elem| {
                     if elem == src_id {
                         *elem = dest_id.clone();
@@ -211,6 +214,12 @@ impl Module {
                     None => panic!("Could not find identifier '{}' in module {:?}", ident, self),
                 }
             }
+            Expr::Array { elements } => (
+                self.next_ir_id(),
+                IRItem::Array {
+                    elements: elements.iter().map(|expr| self.add_expr(expr)).collect(),
+                },
+            ),
             Expr::Tuple { elements } => (
                 self.next_ir_id(),
                 IRItem::Tuple {

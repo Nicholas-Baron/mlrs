@@ -16,6 +16,7 @@ enum Expr {
         environment: Environment,
     },
     Tuple(Vec<Expr>),
+    Array(Vec<Expr>),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -73,6 +74,12 @@ fn eval(module: &Module, id: IRId, environment: &Environment) -> Expr {
         ident @ IRItem::Identifier(_) => {
             unreachable!("tried to evaluate {ident:?} that is not in {environment:?}")
         }
+        IRItem::Array { elements } => Expr::Array(
+            elements
+                .into_iter()
+                .map(|e| eval(module, e, environment))
+                .collect(),
+        ),
         IRItem::Tuple { elements } => Expr::Tuple(
             elements
                 .into_iter()
