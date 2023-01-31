@@ -24,6 +24,7 @@ pub enum EvaluationResult {
     NonLiteral,
     Literal(Literal),
     Tuple(Vec<EvaluationResult>),
+    Array(Vec<EvaluationResult>),
 }
 
 impl From<Expr> for EvaluationResult {
@@ -32,6 +33,9 @@ impl From<Expr> for EvaluationResult {
             Expr::Literal(exp) => EvaluationResult::Literal(exp),
             Expr::Tuple(tuple) => {
                 EvaluationResult::Tuple(tuple.into_iter().map(|e| e.into()).collect())
+            }
+            Expr::Array(elements) => {
+                EvaluationResult::Array(elements.into_iter().map(|e| e.into()).collect())
             }
             _ => EvaluationResult::NonLiteral,
         }
@@ -55,6 +59,19 @@ impl Display for EvaluationResult {
                     fmtr.write_fmt(format_args!("{}", elem))?;
                 }
                 fmtr.write_str(")")
+            }
+            EvaluationResult::Array(elements) => {
+                fmtr.write_str("[")?;
+                let mut first = true;
+                for elem in elements {
+                    if first {
+                        first = false;
+                    } else {
+                        fmtr.write_str(", ")?;
+                    }
+                    fmtr.write_fmt(format_args!("{}", elem))?;
+                }
+                fmtr.write_str("]")
             }
         }
     }
