@@ -106,23 +106,7 @@ fn print_result(result: EvaluationResult, ir_mod: Option<&ir_tree::Module>) {
         println!("{:?}", ir_mod);
     }
 
-    match result {
-        EvaluationResult::NonLiteral => unreachable!(),
-        EvaluationResult::Literal(lit) => println!("{}", lit),
-        EvaluationResult::Tuple(tup) => {
-            print!("(");
-            let mut first = true;
-            for elem in tup {
-                if first {
-                    first = false;
-                } else {
-                    print!(", ");
-                }
-                print!("{}", elem);
-            }
-            println!(")");
-        }
-    }
+    println!("{result}");
 }
 
 fn main() {
