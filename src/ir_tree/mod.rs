@@ -26,8 +26,10 @@ pub enum IRItem {
     Tuple {
         elements: Vec<IRId>,
     },
-    List {
-        elements: Vec<IRId>,
+    EmptyList,
+    ListCons {
+        item: IRId,
+        rest_list: IRId,
     },
     Lambda {
         parameter: IRId,
@@ -80,8 +82,16 @@ impl IRItem {
                     *false_value = dest_id.clone();
                 }
             }
-            Self::Literal(_) | Self::Identifier(_) => {}
-            Self::List { elements } | Self::Tuple { elements } => {
+            Self::Literal(_) | Self::Identifier(_) | Self::EmptyList => {}
+            Self::ListCons { item, rest_list } => {
+                if item == src_id {
+                    *item = dest_id.clone();
+                }
+                if rest_list == src_id {
+                    *rest_list = dest_id.clone();
+                }
+            }
+            Self::Tuple { elements } => {
                 elements.iter_mut().for_each(|elem| {
                     if elem == src_id {
                         *elem = dest_id.clone();
@@ -214,12 +224,22 @@ impl Module {
                     None => panic!("Could not find identifier '{}' in module {:?}", ident, self),
                 }
             }
-            Expr::List { elements } => (
-                self.next_ir_id(),
-                IRItem::List {
-                    elements: elements.iter().map(|expr| self.add_expr(expr)).collect(),
-                },
-            ),
+            Expr::List { elements } => {
+                let mut list_so_far;
+                let mut last_id = Some(self.empty_list_id());
+
+                for item in elements.iter().rev() {
+                    list_so_far = IRItem::ListCons {
+                        item: self.add_expr(item),
+                        rest_list: last_id.take().unwrap(),
+                    };
+                    last_id = Some(self.next_ir_id());
+                    self.ir_items
+                        .insert(last_id.as_ref().unwrap().clone(), list_so_far);
+                }
+
+                return last_id.unwrap();
+            }
             Expr::Tuple { elements } => (
                 self.next_ir_id(),
                 IRItem::Tuple {
@@ -344,6 +364,20 @@ impl Module {
                     )),
                 )
             }
+        }
+    }
+
+    fn empty_list_id(&mut self) -> IRId {
+        if let Some(id) = self
+            .ir_items
+            .iter()
+            .find_map(|(id, item)| (*item == IRItem::EmptyList).then_some(id.clone()))
+        {
+            id
+        } else {
+            let id = self.next_ir_id();
+            self.ir_items.insert(id.clone(), IRItem::EmptyList);
+            id
         }
     }
 

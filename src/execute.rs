@@ -16,7 +16,46 @@ enum Expr {
         environment: Environment,
     },
     Tuple(Vec<Expr>),
-    List(Vec<Expr>),
+    EmptyList,
+    ListCons {
+        item: Box<Expr>,
+        rest: Box<Expr>,
+    },
+}
+
+impl Expr {
+    fn fully_evaluate(self, module: &Module, environment: &Environment) -> EvaluationResult {
+        match self {
+            Expr::Literal(l) => EvaluationResult::Literal(l),
+            Expr::Suspend((id, env)) => eval(module, id, &env).fully_evaluate(module, &env),
+            Expr::Closure {
+                parameter,
+                body,
+                environment,
+            } => EvaluationResult::NonLiteral,
+            Expr::Tuple(items) => EvaluationResult::Tuple(
+                items
+                    .into_iter()
+                    .map(|e| e.fully_evaluate(module, environment))
+                    .collect(),
+            ),
+            Expr::EmptyList => EvaluationResult::List(vec![]),
+            Expr::ListCons { item, rest } => {
+                let mut tail = if let EvaluationResult::List(tail) =
+                    rest.fully_evaluate(module, environment)
+                {
+                    tail
+                } else {
+                    panic!()
+                };
+
+                tail.reverse();
+                tail.push(item.fully_evaluate(module, environment));
+                tail.reverse();
+                EvaluationResult::List(tail)
+            }
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -25,21 +64,6 @@ pub enum EvaluationResult {
     Literal(Literal),
     Tuple(Vec<EvaluationResult>),
     List(Vec<EvaluationResult>),
-}
-
-impl From<Expr> for EvaluationResult {
-    fn from(expr: Expr) -> Self {
-        match expr {
-            Expr::Literal(exp) => EvaluationResult::Literal(exp),
-            Expr::Tuple(tuple) => {
-                EvaluationResult::Tuple(tuple.into_iter().map(|e| e.into()).collect())
-            }
-            Expr::List(elements) => {
-                EvaluationResult::List(elements.into_iter().map(|e| e.into()).collect())
-            }
-            _ => EvaluationResult::NonLiteral,
-        }
-    }
 }
 
 impl Display for EvaluationResult {
@@ -79,7 +103,7 @@ impl Display for EvaluationResult {
 
 pub fn evaluate_id(module: &Module, id: IRId) -> EvaluationResult {
     let environment = Environment::default();
-    eval(module, id, &environment).into()
+    eval(module, id, &environment).fully_evaluate(module, &environment)
 }
 
 fn eval(module: &Module, id: IRId, environment: &Environment) -> Expr {
@@ -91,12 +115,11 @@ fn eval(module: &Module, id: IRId, environment: &Environment) -> Expr {
         ident @ IRItem::Identifier(_) => {
             unreachable!("tried to evaluate {ident:?} that is not in {environment:?}")
         }
-        IRItem::List { elements } => Expr::List(
-            elements
-                .into_iter()
-                .map(|e| eval(module, e, environment))
-                .collect(),
-        ),
+        IRItem::EmptyList => Expr::EmptyList,
+        IRItem::ListCons { item, rest_list } => Expr::ListCons {
+            item: Box::new(Expr::Suspend((item, environment.clone()))),
+            rest: Box::new(Expr::Suspend((rest_list, environment.clone()))),
+        },
         IRItem::Tuple { elements } => Expr::Tuple(
             elements
                 .into_iter()
