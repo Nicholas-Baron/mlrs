@@ -220,7 +220,7 @@ fn parse_array(input: &str) -> IResult<&str, Expr> {
             multi::separated_list0(char(','), parse_expression),
             char(']'),
         ),
-        |elements| Expr::Array { elements },
+        |elements| Expr::List { elements },
     )(input)
 }
 
@@ -529,14 +529,14 @@ mod tests {
     fn parse_array_test() {
         assert_eq!(
             parse_array("[]"),
-            IResult::Ok(("", Expr::Array { elements: vec![] }))
+            IResult::Ok(("", Expr::List { elements: vec![] }))
         );
 
         assert_eq!(
             parse_array("[1]"),
             IResult::Ok((
                 "",
-                Expr::Array {
+                Expr::List {
                     elements: vec![Expr::Literal(Literal::Integer(1))]
                 }
             ))
@@ -546,7 +546,7 @@ mod tests {
             parse_array("[1, false]"),
             IResult::Ok((
                 "",
-                Expr::Array {
+                Expr::List {
                     elements: vec![
                         Expr::Literal(Literal::Integer(1)),
                         Expr::Literal(Literal::Boolean(false))

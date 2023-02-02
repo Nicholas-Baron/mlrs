@@ -16,7 +16,7 @@ enum Expr {
         environment: Environment,
     },
     Tuple(Vec<Expr>),
-    Array(Vec<Expr>),
+    List(Vec<Expr>),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -24,7 +24,7 @@ pub enum EvaluationResult {
     NonLiteral,
     Literal(Literal),
     Tuple(Vec<EvaluationResult>),
-    Array(Vec<EvaluationResult>),
+    List(Vec<EvaluationResult>),
 }
 
 impl From<Expr> for EvaluationResult {
@@ -34,8 +34,8 @@ impl From<Expr> for EvaluationResult {
             Expr::Tuple(tuple) => {
                 EvaluationResult::Tuple(tuple.into_iter().map(|e| e.into()).collect())
             }
-            Expr::Array(elements) => {
-                EvaluationResult::Array(elements.into_iter().map(|e| e.into()).collect())
+            Expr::List(elements) => {
+                EvaluationResult::List(elements.into_iter().map(|e| e.into()).collect())
             }
             _ => EvaluationResult::NonLiteral,
         }
@@ -60,7 +60,7 @@ impl Display for EvaluationResult {
                 }
                 fmtr.write_str(")")
             }
-            EvaluationResult::Array(elements) => {
+            EvaluationResult::List(elements) => {
                 fmtr.write_str("[")?;
                 let mut first = true;
                 for elem in elements {
@@ -91,7 +91,7 @@ fn eval(module: &Module, id: IRId, environment: &Environment) -> Expr {
         ident @ IRItem::Identifier(_) => {
             unreachable!("tried to evaluate {ident:?} that is not in {environment:?}")
         }
-        IRItem::Array { elements } => Expr::Array(
+        IRItem::List { elements } => Expr::List(
             elements
                 .into_iter()
                 .map(|e| eval(module, e, environment))

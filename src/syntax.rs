@@ -21,7 +21,7 @@ pub enum Expr {
     Tuple {
         elements: Vec<Expr>,
     },
-    Array {
+    List {
         elements: Vec<Expr>,
     },
     Lambda {
