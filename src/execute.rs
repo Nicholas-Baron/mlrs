@@ -28,11 +28,7 @@ impl Expr {
         match self {
             Expr::Literal(l) => EvaluationResult::Literal(l),
             Expr::Suspend((id, env)) => eval(module, id, &env).fully_evaluate(module, &env),
-            Expr::Closure {
-                parameter,
-                body,
-                environment,
-            } => EvaluationResult::NonLiteral,
+            Expr::Closure { .. } => EvaluationResult::NonLiteral,
             Expr::Tuple(items) => EvaluationResult::Tuple(
                 items
                     .into_iter()
