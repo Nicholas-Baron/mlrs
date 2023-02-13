@@ -146,7 +146,7 @@ macro_rules! alt_map {
 }
 
 fn parse_prepend(input: &str) -> IResult<&str, Expr> {
-    let (input, expr) = parse_addition(input)?;
+    let (input, mut expr) = parse_addition(input)?;
 
     let (input, exprs): (_, Vec<(_, _)>) = multi::many0(sequence::tuple((
         sequence::delimited(
@@ -157,17 +157,24 @@ fn parse_prepend(input: &str) -> IResult<&str, Expr> {
             ],
             space0,
         ),
-        parse_addition,
+        combinator::map(parse_addition, Box::new),
     )))(input)?;
 
-    Ok((
-        input,
-        exprs.into_iter().fold(expr, |lhs, (op, rhs)| Expr::Binary {
-            lhs: Box::new(lhs),
-            rhs: Box::new(rhs),
+    if !exprs.is_empty() {
+        let (op, rhs) = exprs
+            .into_iter()
+            .rev()
+            .reduce(|(op, rhs), (next_op, lhs)| (next_op, Box::new(Expr::Binary { lhs, rhs, op })))
+            .unwrap();
+
+        expr = Expr::Binary {
+            lhs: Box::new(expr),
+            rhs,
             op,
-        }),
-    ))
+        };
+    }
+
+    Ok((input, expr))
 }
 
 fn parse_addition(input: &str) -> IResult<&str, Expr> {
@@ -399,6 +406,41 @@ mod tests {
                     body: Box::new(Expr::Lambda {
                         parameter: Pattern::Id("y".to_string()),
                         body: Box::new(Expr::Identifier("x".to_string()))
+                    })
+                }
+            ))
+        );
+    }
+
+    #[test]
+    fn parse_prepend_test() {
+        assert_eq!(
+            parse_expression("5 + 3 : []"),
+            Ok((
+                "",
+                Expr::Binary {
+                    lhs: Box::new(Expr::Binary {
+                        lhs: Box::new(Expr::Literal(Literal::Integer(5))),
+                        rhs: Box::new(Expr::Literal(Literal::Integer(3))),
+                        op: BinaryOperation::Plus
+                    }),
+                    rhs: Box::new(Expr::List { elements: vec![] }),
+                    op: BinaryOperation::Prepend
+                }
+            ))
+        );
+
+        assert_eq!(
+            parse_expression("5 : 3 : []"),
+            Ok((
+                "",
+                Expr::Binary {
+                    lhs: Box::new(Expr::Literal(Literal::Integer(5))),
+                    op: BinaryOperation::Prepend,
+                    rhs: Box::new(Expr::Binary {
+                        lhs: Box::new(Expr::Literal(Literal::Integer(3))),
+                        rhs: Box::new(Expr::List { elements: vec![] }),
+                        op: BinaryOperation::Prepend
                     })
                 }
             ))
