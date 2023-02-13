@@ -237,8 +237,15 @@ fn evaluate_prim(module: &Module, op: BinaryOperation, lhs: Expr, rhs: Expr) -> 
                 BinaryOperation::Minus => Expr::Literal(Literal::Integer(lhs - rhs)),
                 BinaryOperation::Mult => Expr::Literal(Literal::Integer(lhs * rhs)),
                 BinaryOperation::Plus => Expr::Literal(Literal::Integer(lhs + rhs)),
+                // TODO: Print panic message
+                BinaryOperation::Prepend | BinaryOperation::Concat => panic!(),
             }
         }
+        (BinaryOperation::Concat, Expr::EmptyList, Expr::EmptyList) => Expr::EmptyList,
+        (BinaryOperation::Prepend, lhs, rhs) => Expr::ListCons {
+            item: Box::new(lhs),
+            rest: Box::new(rhs),
+        },
         prim_op => todo!("cannot evaluate_prim{prim_op:?}"),
     }
 }

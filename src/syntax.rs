@@ -63,6 +63,8 @@ pub enum BinaryOperation {
     Plus,
     Mult,
     Minus,
+    Prepend,
+    Concat,
 }
 
 // TODO: Fold this into `Expr`?
