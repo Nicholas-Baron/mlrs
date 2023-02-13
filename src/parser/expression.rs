@@ -122,7 +122,7 @@ fn parse_equality(input: &str) -> IResult<&str, Expr> {
     combinator::map(
         multi::separated_list1(
             sequence::delimited(space0, tag("=="), space0),
-            parse_addition,
+            parse_prepend,
         ),
         |exprs| {
             exprs
@@ -135,6 +135,39 @@ fn parse_equality(input: &str) -> IResult<&str, Expr> {
                 .expect("separated_list1 should always give at least 1 item")
         },
     )(input)
+}
+
+macro_rules! alt_map {
+    [ $(($combinator:expr, $result:expr)),+ ] => {
+        branch::alt(
+            ( $(combinator::value($result, $combinator)),+ )
+            )
+    };
+}
+
+fn parse_prepend(input: &str) -> IResult<&str, Expr> {
+    let (input, expr) = parse_addition(input)?;
+
+    let (input, exprs): (_, Vec<(_, _)>) = multi::many0(sequence::tuple((
+        sequence::delimited(
+            space0,
+            alt_map![
+                (tag("++"), BinaryOperation::Concat),
+                (char(':'), BinaryOperation::Prepend)
+            ],
+            space0,
+        ),
+        parse_addition,
+    )))(input)?;
+
+    Ok((
+        input,
+        exprs.into_iter().fold(expr, |lhs, (op, rhs)| Expr::Binary {
+            lhs: Box::new(lhs),
+            rhs: Box::new(rhs),
+            op,
+        }),
+    ))
 }
 
 fn parse_addition(input: &str) -> IResult<&str, Expr> {
