@@ -16,13 +16,14 @@ pub enum IRPattern {
     Ignore,
     Literal(Literal),
     Identifier(IRId),
-    Tuple(Vec<IRPattern>),
+    Tuple(Vec<IRId>),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum IRItem {
     Literal(Literal),
     Identifier(Identifier),
+    Pattern(IRPattern),
     Tuple {
         elements: Vec<IRId>,
     },
@@ -47,7 +48,7 @@ pub enum IRItem {
     },
     Match {
         scrutinee: IRId,
-        arms: Vec<(IRPattern, IRId)>,
+        arms: Vec<(IRId, IRId)>,
     },
 }
 
@@ -103,10 +104,8 @@ impl IRItem {
                     *scrutinee = dest_id.clone();
                 }
                 arms.iter_mut().for_each(|(pattern, expr)| {
-                    if let IRPattern::Identifier(id) = pattern {
-                        if id == src_id {
-                            *id = dest_id.clone();
-                        }
+                    if pattern == src_id {
+                        *pattern = dest_id.clone();
                     }
 
                     if expr == src_id {
@@ -114,6 +113,20 @@ impl IRItem {
                     }
                 });
             }
+            IRItem::Literal(_) => todo!(),
+            IRItem::Identifier(_) => todo!(),
+            IRItem::Pattern(_) => todo!(),
+            IRItem::Tuple { elements } => todo!(),
+            IRItem::EmptyList => todo!(),
+            IRItem::ListCons { item, rest_list } => todo!(),
+            IRItem::Lambda { parameter, body } => todo!(),
+            IRItem::Binary { lhs, rhs, op } => todo!(),
+            IRItem::If {
+                condition,
+                true_value,
+                false_value,
+            } => todo!(),
+            IRItem::Match { scrutinee, arms } => todo!(),
         }
     }
 }
@@ -340,11 +353,8 @@ impl Module {
         expr_id
     }
 
-    fn add_pattern(
-        &mut self,
-        pattern: &syntax::Pattern,
-    ) -> (IRPattern, Option<HashMap<String, IRId>>) {
-        match pattern {
+    fn add_pattern(&mut self, pattern: &syntax::Pattern) -> (IRId, Option<HashMap<String, IRId>>) {
+        let (pattern, bound_names) = match pattern {
             Pattern::Id(id) => {
                 let mut bound_names = HashMap::new();
                 let ir_id = self.next_ir_id();
@@ -354,7 +364,7 @@ impl Module {
             Pattern::Ignore => (IRPattern::Ignore, None),
             Pattern::Literal(lit) => (IRPattern::Literal(lit.clone()), None),
             Pattern::Tuple(elements) => {
-                let (patterns, bound_names): (_, Vec<_>) =
+                let (patterns, bound_names): (Vec<IRId>, Vec<_>) =
                     elements.iter().map(|elem| self.add_pattern(elem)).unzip();
 
                 (
@@ -364,7 +374,12 @@ impl Module {
                     )),
                 )
             }
-        }
+        };
+
+        let ir_id = self.next_ir_id();
+        self.ir_items
+            .insert(ir_id.clone(), IRItem::Pattern(pattern));
+        (ir_id, bound_names)
     }
 
     fn empty_list_id(&mut self) -> IRId {

@@ -111,6 +111,9 @@ fn eval(module: &Module, id: IRId, environment: &Environment) -> Expr {
         ident @ IRItem::Identifier(_) => {
             unreachable!("tried to evaluate {ident:?} that is not in {environment:?}")
         }
+        pattern @ IRItem::Pattern(_) => {
+            unreachable!("Tried to evaluate {pattern:?}")
+        }
         IRItem::EmptyList => Expr::EmptyList,
         IRItem::ListCons { item, rest_list } => Expr::ListCons {
             item: Box::new(Expr::Suspend((item, environment.clone()))),
@@ -161,6 +164,10 @@ fn eval(module: &Module, id: IRId, environment: &Environment) -> Expr {
             let (selected_arm, env) = arms
                 .into_iter()
                 .find_map(|(pattern, expr)| {
+                    let pattern = match module.get_item(&pattern) {
+                        Some(IRItem::Pattern(pattern)) => pattern,
+                        _ => panic!(),
+                    };
                     match_pattern(module, &scrutinee, &pattern).map(|env| (expr, env))
                 })
                 .expect("match expression was not exhaustive");
@@ -178,12 +185,19 @@ fn match_pattern(module: &Module, scrutinee: &Expr, pattern: &IRPattern) -> Opti
             match_pattern(module, &eval(module, expr.clone(), env), pattern)
         }
         (_, IRPattern::Ignore) => Some(Default::default()),
+        // Pattern match a tuple
         (Expr::Tuple(lhs), IRPattern::Tuple(rhs)) => {
             if lhs.len() != rhs.len() {
                 return None;
             }
             let bindings: Vec<_> = std::iter::zip(lhs, rhs)
-                .map(|(l, r)| match_pattern(module, l, r))
+                .map(|(l, r)| {
+                    let pattern = match module.get_item(r) {
+                        Some(IRItem::Pattern(pattern)) => pattern,
+                        _ => panic!(),
+                    };
+                    match_pattern(module, l, pattern)
+                })
                 .collect();
 
             if bindings.iter().any(|binding| binding.is_none()) {
