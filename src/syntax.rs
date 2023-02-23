@@ -10,7 +10,7 @@ pub type Identifier = String;
 #[derive(Debug, PartialEq)]
 pub struct Declaration {
     pub name: Identifier,
-    pub expr: Box<Expr>,
+    pub expr: Expr,
 }
 
 /// All expressions
