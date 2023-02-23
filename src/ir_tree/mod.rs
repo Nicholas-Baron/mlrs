@@ -439,10 +439,10 @@ mod tests {
     fn lowers_binding() {
         let lambda = syntax::Declaration {
             name: "f".to_string(),
-            expr: Box::new(syntax::Expr::Lambda {
+            expr: syntax::Expr::Lambda {
                 parameter: Pattern::Id("x".to_string()),
                 body: Box::new(syntax::Expr::Identifier("x".to_string())),
-            }),
+            },
         };
 
         let module = Module::from_decls(&[lambda]);
@@ -468,7 +468,7 @@ mod tests {
     fn lowers_multiple() {
         let x_bind = syntax::Declaration {
             name: "x".to_string(),
-            expr: Box::new(syntax::Expr::Literal(Literal::Integer(5))),
+            expr: syntax::Expr::Literal(Literal::Integer(5)),
         };
 
         let mut module = Module::from_decls(&[x_bind]);
@@ -500,7 +500,7 @@ mod tests {
     fn lowers_recursion() {
         let x_bind = syntax::Declaration {
             name: "x".to_string(),
-            expr: Box::new(syntax::Expr::Identifier("x".to_string())),
+            expr: syntax::Expr::Identifier("x".to_string()),
         };
 
         let module = Module::from_decls(&[x_bind]);
@@ -518,15 +518,15 @@ mod tests {
     fn lowers_subfunction() {
         let inner_lambda = syntax::Declaration {
             name: "inner".to_string(),
-            expr: Box::new(syntax::Expr::Lambda {
+            expr: syntax::Expr::Lambda {
                 parameter: Pattern::Id("x".to_string()),
                 body: Box::new(syntax::Expr::Identifier("x".to_string())),
-            }),
+            },
         };
 
         let outer_lambda = syntax::Declaration {
             name: "outer".to_string(),
-            expr: Box::new(syntax::Expr::Lambda {
+            expr: syntax::Expr::Lambda {
                 parameter: Pattern::Id("x".to_string()),
                 body: Box::new(syntax::Expr::Let {
                     inner_expr: Box::new(syntax::Expr::Binary {
@@ -536,7 +536,7 @@ mod tests {
                     }),
                     bound_values: vec![inner_lambda],
                 }),
-            }),
+            },
         };
 
         let module = Module::from_decls(&[outer_lambda]);
@@ -560,13 +560,13 @@ mod tests {
     fn lowers_ignore() {
         let const_func = syntax::Declaration {
             name: "const".to_string(),
-            expr: Box::new(syntax::Expr::Lambda {
+            expr: syntax::Expr::Lambda {
                 parameter: syntax::Pattern::Id("x".to_string()),
                 body: Box::new(syntax::Expr::Lambda {
                     parameter: syntax::Pattern::Ignore,
                     body: Box::new(syntax::Expr::Identifier("x".to_string())),
                 }),
-            }),
+            },
         };
 
         let module = Module::from_decls(&[const_func]);

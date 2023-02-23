@@ -127,8 +127,9 @@ pub fn parse_declaration(input: &str) -> IResult<&str, Declaration> {
             expr: params
                 .into_iter()
                 .rev()
-                .fold(Box::new(body), |body, parameter| {
-                    Box::new(Expr::Lambda { body, parameter })
+                .fold(body, |body, parameter| Expr::Lambda {
+                    body: Box::new(body),
+                    parameter,
                 }),
         },
     ))
@@ -159,14 +160,14 @@ func x = x * 2
                     }),
                     DeclOrExpr::Decl(Declaration {
                         name: "func".to_string(),
-                        expr: Box::new(Expr::Lambda {
+                        expr: Expr::Lambda {
                             parameter: Pattern::Id("x".to_string()),
                             body: Box::new(Expr::Binary {
                                 lhs: Box::new(Expr::Identifier("x".to_string())),
                                 rhs: Box::new(Expr::Literal(Literal::Integer(2))),
                                 op: BinaryOperation::Mult
                             })
-                        })
+                        }
                     })
                 ]
             ))
@@ -194,13 +195,13 @@ func x = match x
                     }),
                     DeclOrExpr::Decl(Declaration {
                         name: "func".to_string(),
-                        expr: Box::new(Expr::Lambda {
+                        expr: Expr::Lambda {
                             parameter: Pattern::Id("x".to_string()),
                             body: Box::new(Expr::Match {
                                 scrutinee: Box::new(Expr::Identifier("x".to_string())),
                                 arms: vec![(Pattern::Ignore, Expr::Literal(Literal::Integer(10)))]
                             })
-                        })
+                        }
                     }),
                     DeclOrExpr::Expr(Expr::Tuple {
                         elements: vec![
@@ -228,7 +229,7 @@ func x = match x
                 "",
                 Declaration {
                     name: "x".to_string(),
-                    expr: Box::new(Expr::Literal(Literal::Integer(5)))
+                    expr: Expr::Literal(Literal::Integer(5))
                 }
             ))
         );
@@ -239,7 +240,7 @@ func x = match x
                 "",
                 Declaration {
                     name: "x".to_string(),
-                    expr: Box::new(Expr::Binary {
+                    expr: Expr::Binary {
                         op: BinaryOperation::Application,
                         rhs: Box::new(Expr::Literal(Literal::Integer(5))),
                         lhs: Box::new(Expr::Lambda {
@@ -253,7 +254,7 @@ func x = match x
                                 }),
                             }),
                         }),
-                    })
+                    }
                 }
             ))
         );
@@ -308,7 +309,7 @@ fib x = if x == 0 then 0
                 Expr::Let {
                     bound_values: vec![Declaration {
                         name: "x".to_string(),
-                        expr: Box::new(Expr::Literal(Literal::Integer(5)))
+                        expr: Expr::Literal(Literal::Integer(5))
                     }],
                     inner_expr: Box::new(Expr::Identifier("x".to_string()))
                 }
@@ -328,11 +329,11 @@ fib x = if x == 0 then 0
                     bound_values: vec![
                         Declaration {
                             name: "x".to_string(),
-                            expr: Box::new(Expr::Literal(Literal::Integer(5)))
+                            expr: Expr::Literal(Literal::Integer(5))
                         },
                         Declaration {
                             name: "y".to_string(),
-                            expr: Box::new(Expr::Literal(Literal::Integer(10)))
+                            expr: Expr::Literal(Literal::Integer(10))
                         },
                     ],
                     inner_expr: Box::new(Expr::Binary {
@@ -353,13 +354,13 @@ fib x = if x == 0 then 0
                 "",
                 Declaration {
                     name: "const".to_string(),
-                    expr: Box::new(Expr::Lambda {
+                    expr: Expr::Lambda {
                         parameter: Pattern::Id("x".to_string()),
                         body: Box::new(Expr::Lambda {
                             parameter: Pattern::Ignore,
                             body: Box::new(Expr::Identifier("x".to_string()))
                         })
-                    })
+                    }
                 }
             ))
         );
