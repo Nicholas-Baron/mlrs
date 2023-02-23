@@ -131,10 +131,12 @@ impl IRItem {
     }
 }
 
+type Scope = HashMap<Identifier, IRId>;
+
 #[derive(Default, Debug)]
 pub struct Module {
     ir_items: HashMap<IRId, IRItem>,
-    name_scope: Vec<HashMap<Identifier, IRId>>,
+    name_scopes: Vec<Scope>,
     next_ir_id: IRId,
 }
 
@@ -160,28 +162,28 @@ impl Module {
     }
 
     /// Add a fresh name scope, returning it for convenience.
-    fn add_new_name_scope(&mut self) -> &mut HashMap<Identifier, IRId> {
-        self.name_scope.push(Default::default());
-        self.name_scope.last_mut().unwrap()
+    fn add_new_name_scope(&mut self) -> &mut Scope {
+        self.name_scopes.push(Default::default());
+        self.name_scopes.last_mut().unwrap()
     }
 
     /// Remove the most recent name scope from the list of scopes.
     fn hide_top_name_scope(&mut self) {
-        self.name_scope.pop();
+        self.name_scopes.pop();
     }
 
     /// Gets the current name scope. If none exists, then one will be created.
-    fn current_name_scope(&mut self) -> &mut HashMap<Identifier, IRId> {
-        if self.name_scope.is_empty() {
+    fn current_name_scope(&mut self) -> &mut Scope {
+        if self.name_scopes.is_empty() {
             self.add_new_name_scope()
         } else {
-            self.name_scope.last_mut().unwrap()
+            self.name_scopes.last_mut().unwrap()
         }
     }
 
     /// Walk the name scopes in reverse order to find the `IRId` for a particular identifier.
     fn find_identifier(&self, identifier: &Identifier) -> Option<&IRId> {
-        self.name_scope
+        self.name_scopes
             .iter()
             .rev()
             .find_map(|scope| scope.get(identifier))
@@ -195,7 +197,7 @@ impl Module {
         // rewriting means that we need to
 
         // 1. "rebind" any names bound to `src_id` instead to `dest_id`
-        for scope in &mut self.name_scope {
+        for scope in &mut self.name_scopes {
             for (_, id) in scope.iter_mut().filter(|(_, id)| id == &src_id) {
                 *id = dest_id.clone();
             }
@@ -418,7 +420,7 @@ mod tests {
         };
 
         let (module, lambda_id) = Module::from_expr(&lambda);
-        assert_eq!(module.name_scope.len(), 0);
+        assert_eq!(module.name_scopes.len(), 0);
 
         let x_id = module.find_identifier(&"x".to_string());
         assert_eq!(x_id, None);
@@ -446,7 +448,7 @@ mod tests {
         };
 
         let module = Module::from_decls(&[lambda]);
-        assert_eq!(module.name_scope.len(), 1);
+        assert_eq!(module.name_scopes.len(), 1);
 
         let f_id = module.find_identifier(&"f".to_string());
         assert_ne!(f_id, None);
@@ -472,7 +474,7 @@ mod tests {
         };
 
         let mut module = Module::from_decls(&[x_bind]);
-        assert_eq!(module.name_scope.len(), 1);
+        assert_eq!(module.name_scopes.len(), 1);
 
         let f_id = module.find_identifier(&"f".to_string());
         assert_eq!(f_id, None);
@@ -504,7 +506,7 @@ mod tests {
         };
 
         let module = Module::from_decls(&[x_bind]);
-        assert_eq!(module.name_scope.len(), 1);
+        assert_eq!(module.name_scopes.len(), 1);
 
         let f_id = module.find_identifier(&"f".to_string());
         assert_eq!(f_id, None);
@@ -540,7 +542,7 @@ mod tests {
         };
 
         let module = Module::from_decls(&[outer_lambda]);
-        assert_eq!(module.name_scope.len(), 1);
+        assert_eq!(module.name_scopes.len(), 1);
         println!("{:?}", module);
 
         let x_id = module.find_identifier(&"x".to_string());
@@ -570,7 +572,7 @@ mod tests {
         };
 
         let module = Module::from_decls(&[const_func]);
-        assert_eq!(module.name_scope.len(), 1);
+        assert_eq!(module.name_scopes.len(), 1);
         println!("{:?}", module);
 
         let x_id = module.find_identifier(&"x".to_string());
