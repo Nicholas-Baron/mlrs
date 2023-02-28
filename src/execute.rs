@@ -108,7 +108,7 @@ fn eval(module: &Module, id: IRId, environment: &Environment) -> Expr {
     }
 
     match module.get_item(&id).cloned().unwrap() {
-        ident @ IRItem::Identifier(_) => {
+        ident @ IRItem::Identifier { .. } => {
             unreachable!("tried to evaluate {ident:?} that is not in {environment:?}")
         }
         pattern @ IRItem::Pattern(_) => {
