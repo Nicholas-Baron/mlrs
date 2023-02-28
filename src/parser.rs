@@ -122,16 +122,16 @@ pub fn parse_declaration(input: &str) -> IResult<&str, Declaration> {
 
     Ok((
         input,
-        Declaration {
+        Declaration::simple_name(
             name,
-            expr: params
+            params
                 .into_iter()
                 .rev()
                 .fold(body, |body, parameter| Expr::Lambda {
                     body: Box::new(body),
                     parameter,
                 }),
-        },
+        ),
     ))
 }
 
@@ -158,9 +158,9 @@ func x = x * 2
                             Expr::Literal(Literal::Integer(0))
                         ]
                     }),
-                    DeclOrExpr::Decl(Declaration {
-                        name: "func".to_string(),
-                        expr: Expr::Lambda {
+                    DeclOrExpr::Decl(Declaration::simple_name(
+                        "func".to_string(),
+                        Expr::Lambda {
                             parameter: Pattern::Id("x".to_string()),
                             body: Box::new(Expr::Binary {
                                 lhs: Box::new(Expr::Identifier("x".to_string())),
@@ -168,7 +168,7 @@ func x = x * 2
                                 op: BinaryOperation::Mult
                             })
                         }
-                    })
+                    ))
                 ]
             ))
         );
@@ -193,16 +193,16 @@ func x = match x
                             Expr::Literal(Literal::Integer(0))
                         ]
                     }),
-                    DeclOrExpr::Decl(Declaration {
-                        name: "func".to_string(),
-                        expr: Expr::Lambda {
+                    DeclOrExpr::Decl(Declaration::simple_name(
+                        "func".to_string(),
+                        Expr::Lambda {
                             parameter: Pattern::Id("x".to_string()),
                             body: Box::new(Expr::Match {
                                 scrutinee: Box::new(Expr::Identifier("x".to_string())),
                                 arms: vec![(Pattern::Ignore, Expr::Literal(Literal::Integer(10)))]
                             })
                         }
-                    }),
+                    )),
                     DeclOrExpr::Expr(Expr::Tuple {
                         elements: vec![
                             Expr::Literal(Literal::Integer(9)),
@@ -227,10 +227,7 @@ func x = match x
             parse_declaration("x = 5"),
             Ok((
                 "",
-                Declaration {
-                    name: "x".to_string(),
-                    expr: Expr::Literal(Literal::Integer(5))
-                }
+                Declaration::simple_name("x".to_string(), Expr::Literal(Literal::Integer(5)))
             ))
         );
 
@@ -238,9 +235,9 @@ func x = match x
             parse_declaration("x = (\\ a b -> a + b) 5"),
             Ok((
                 "",
-                Declaration {
-                    name: "x".to_string(),
-                    expr: Expr::Binary {
+                Declaration::simple_name(
+                    "x".to_string(),
+                    Expr::Binary {
                         op: BinaryOperation::Application,
                         rhs: Box::new(Expr::Literal(Literal::Integer(5))),
                         lhs: Box::new(Expr::Lambda {
@@ -255,7 +252,7 @@ func x = match x
                             }),
                         }),
                     }
-                }
+                )
             ))
         );
     }
@@ -307,10 +304,10 @@ fib x = if x == 0 then 0
             Ok((
                 "",
                 Expr::Let {
-                    bound_values: vec![Declaration {
-                        name: "x".to_string(),
-                        expr: Expr::Literal(Literal::Integer(5))
-                    }],
+                    bound_values: vec![Declaration::simple_name(
+                        "x".to_string(),
+                        Expr::Literal(Literal::Integer(5))
+                    )],
                     inner_expr: Box::new(Expr::Identifier("x".to_string()))
                 }
             ))
@@ -327,14 +324,14 @@ fib x = if x == 0 then 0
                 "",
                 Expr::Let {
                     bound_values: vec![
-                        Declaration {
-                            name: "x".to_string(),
-                            expr: Expr::Literal(Literal::Integer(5))
-                        },
-                        Declaration {
-                            name: "y".to_string(),
-                            expr: Expr::Literal(Literal::Integer(10))
-                        },
+                        Declaration::simple_name(
+                            "x".to_string(),
+                            Expr::Literal(Literal::Integer(5))
+                        ),
+                        Declaration::simple_name(
+                            "y".to_string(),
+                            Expr::Literal(Literal::Integer(10))
+                        ),
                     ],
                     inner_expr: Box::new(Expr::Binary {
                         lhs: Box::new(Expr::Identifier("x".to_string())),
@@ -352,16 +349,16 @@ fib x = if x == 0 then 0
             parse_declaration("const x _ = x"),
             Ok((
                 "",
-                Declaration {
-                    name: "const".to_string(),
-                    expr: Expr::Lambda {
+                Declaration::simple_name(
+                    "const".to_string(),
+                    Expr::Lambda {
                         parameter: Pattern::Id("x".to_string()),
                         body: Box::new(Expr::Lambda {
                             parameter: Pattern::Ignore,
                             body: Box::new(Expr::Identifier("x".to_string()))
                         })
                     }
-                }
+                )
             ))
         );
     }

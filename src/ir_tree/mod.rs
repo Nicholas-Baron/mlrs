@@ -226,13 +226,15 @@ impl Module {
     }
 
     pub fn add_decl(&mut self, decl: &syntax::Declaration) -> IRId {
-        let syntax::Declaration { name, expr } = decl;
+        let syntax::Declaration { pattern, expr } = decl;
 
         // We need to allow recursive bindings.
         // To do so, we can rewrite an id after it has been added.
         let temp_ir_id = self.next_ir_id();
         let scope = self.current_name_scope();
-        scope.insert(name.clone(), temp_ir_id.clone());
+        for name in pattern.bound_names() {
+            scope.insert(name.clone(), temp_ir_id.clone());
+        }
         let new_ir_id = self.add_expr(expr);
         self.rewrite_id_to(&new_ir_id, &temp_ir_id);
         new_ir_id
@@ -327,9 +329,15 @@ impl Module {
                 bound_values,
                 inner_expr,
             } => {
-                let bound_names: HashMap<String, _> = bound_values
+                let bound_names: Scope = bound_values
                     .iter()
-                    .map(|decl| (decl.name.clone(), self.add_decl(decl)))
+                    .flat_map(|decl| {
+                        let decl_body_id = self.add_decl(decl);
+                        decl.pattern
+                            .bound_names()
+                            .cloned()
+                            .zip(std::iter::repeat(decl_body_id))
+                    })
                     .collect();
                 let name_scope = self.add_new_name_scope();
                 *name_scope = bound_names;
@@ -454,13 +462,13 @@ mod tests {
 
     #[test]
     fn lowers_binding() {
-        let lambda = syntax::Declaration {
-            name: "f".to_string(),
-            expr: syntax::Expr::Lambda {
+        let lambda = syntax::Declaration::simple_name(
+            "f".to_string(),
+            syntax::Expr::Lambda {
                 parameter: Pattern::Id("x".to_string()),
                 body: Box::new(syntax::Expr::Identifier("x".to_string())),
             },
-        };
+        );
 
         let module = Module::from_decls(&[lambda]);
         assert_eq!(module.name_scopes.len(), 1);
@@ -483,10 +491,10 @@ mod tests {
 
     #[test]
     fn lowers_multiple() {
-        let x_bind = syntax::Declaration {
-            name: "x".to_string(),
-            expr: syntax::Expr::Literal(Literal::Integer(5)),
-        };
+        let x_bind = syntax::Declaration::simple_name(
+            "x".to_string(),
+            syntax::Expr::Literal(Literal::Integer(5)),
+        );
 
         let mut module = Module::from_decls(&[x_bind]);
         assert_eq!(module.name_scopes.len(), 1);
@@ -515,10 +523,10 @@ mod tests {
 
     #[test]
     fn lowers_recursion() {
-        let x_bind = syntax::Declaration {
-            name: "x".to_string(),
-            expr: syntax::Expr::Identifier("x".to_string()),
-        };
+        let x_bind = syntax::Declaration::simple_name(
+            "x".to_string(),
+            syntax::Expr::Identifier("x".to_string()),
+        );
 
         let module = Module::from_decls(&[x_bind]);
         assert_eq!(module.name_scopes.len(), 1);
@@ -533,17 +541,17 @@ mod tests {
 
     #[test]
     fn lowers_subfunction() {
-        let inner_lambda = syntax::Declaration {
-            name: "inner".to_string(),
-            expr: syntax::Expr::Lambda {
+        let inner_lambda = syntax::Declaration::simple_name(
+            "inner".to_string(),
+            syntax::Expr::Lambda {
                 parameter: Pattern::Id("x".to_string()),
                 body: Box::new(syntax::Expr::Identifier("x".to_string())),
             },
-        };
+        );
 
-        let outer_lambda = syntax::Declaration {
-            name: "outer".to_string(),
-            expr: syntax::Expr::Lambda {
+        let outer_lambda = syntax::Declaration::simple_name(
+            "outer".to_string(),
+            syntax::Expr::Lambda {
                 parameter: Pattern::Id("x".to_string()),
                 body: Box::new(syntax::Expr::Let {
                     inner_expr: Box::new(syntax::Expr::Binary {
@@ -554,7 +562,7 @@ mod tests {
                     bound_values: vec![inner_lambda],
                 }),
             },
-        };
+        );
 
         let module = Module::from_decls(&[outer_lambda]);
         assert_eq!(module.name_scopes.len(), 1);
@@ -575,16 +583,16 @@ mod tests {
 
     #[test]
     fn lowers_ignore() {
-        let const_func = syntax::Declaration {
-            name: "const".to_string(),
-            expr: syntax::Expr::Lambda {
+        let const_func = syntax::Declaration::simple_name(
+            "const".to_string(),
+            syntax::Expr::Lambda {
                 parameter: syntax::Pattern::Id("x".to_string()),
                 body: Box::new(syntax::Expr::Lambda {
                     parameter: syntax::Pattern::Ignore,
                     body: Box::new(syntax::Expr::Identifier("x".to_string())),
                 }),
             },
-        };
+        );
 
         let module = Module::from_decls(&[const_func]);
         assert_eq!(module.name_scopes.len(), 1);
