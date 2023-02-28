@@ -9,8 +9,17 @@ pub type Identifier = String;
 /// ```
 #[derive(Debug, PartialEq)]
 pub struct Declaration {
-    pub name: Identifier,
+    pub pattern: Pattern,
     pub expr: Expr,
+}
+
+impl Declaration {
+    pub fn simple_name(id: Identifier, expr: Expr) -> Self {
+        Self {
+            pattern: Pattern::Id(id),
+            expr,
+        }
+    }
 }
 
 /// All expressions
@@ -48,12 +57,27 @@ pub enum Expr {
     },
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Pattern {
     Id(Identifier),
     Literal(Literal),
     Tuple(Vec<Pattern>),
     Ignore,
+}
+
+impl Pattern {
+    pub fn bound_names(&self) -> Box<dyn Iterator<Item = &Identifier> + '_> {
+        use std::iter;
+        match self {
+            Pattern::Id(id) => Box::new(iter::once(id)),
+            Pattern::Tuple(subpatterns) => Box::new(
+                subpatterns
+                    .iter()
+                    .flat_map(|subpattern| subpattern.bound_names()),
+            ),
+            Pattern::Literal(_) | Pattern::Ignore => Box::new(iter::empty()),
+        }
+    }
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]
