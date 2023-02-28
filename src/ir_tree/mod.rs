@@ -22,7 +22,10 @@ pub enum IRPattern {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum IRItem {
     Literal(Literal),
-    Identifier(Identifier),
+    Identifier {
+        name: Identifier,
+        declaring_item: Option<IRId>,
+    },
     Pattern(IRPattern),
     Tuple {
         elements: Vec<IRId>,
@@ -83,7 +86,15 @@ impl IRItem {
                     *false_value = dest_id.clone();
                 }
             }
-            Self::Literal(_) | Self::Identifier(_) | Self::EmptyList => {}
+            Self::Identifier {
+                declaring_item: Some(id),
+                ..
+            } => {
+                if id == src_id {
+                    *id = dest_id.clone();
+                }
+            }
+            Self::Literal(_) | Self::EmptyList | Self::Identifier { .. } => {}
             Self::ListCons { item, rest_list } => {
                 if item == src_id {
                     *item = dest_id.clone();
@@ -114,7 +125,6 @@ impl IRItem {
                 });
             }
             IRItem::Literal(_) => todo!(),
-            IRItem::Identifier(_) => todo!(),
             IRItem::Pattern(_) => todo!(),
             IRItem::Tuple { elements } => todo!(),
             IRItem::EmptyList => todo!(),
@@ -272,8 +282,13 @@ impl Module {
                     match parameter {
                         Pattern::Id(param) => {
                             name_scope.insert(param.clone(), param_id.clone());
-                            self.ir_items
-                                .insert(param_id.clone(), IRItem::Identifier(param.clone()));
+                            self.ir_items.insert(
+                                param_id.clone(),
+                                IRItem::Identifier {
+                                    name: param.clone(),
+                                    declaring_item: Some(param_id.clone()),
+                                },
+                            );
                         }
                         Pattern::Literal(_) => todo!(),
                         Pattern::Tuple(_) => todo!(),
