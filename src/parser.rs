@@ -105,7 +105,7 @@ pub fn parse_declaration_list(input: &str) -> IResult<&str, Vec<Declaration>> {
     multi::separated_list0(multi::many1(parse_separator), parse_declaration)(input)
 }
 
-pub fn parse_declaration(input: &str) -> IResult<&str, Declaration> {
+fn parse_function_declaration(input: &str) -> IResult<&str, Declaration> {
     let (input, name) = sequence::preceded(multispace0, parse_identifier)(input)?;
 
     // There may be some parameters to parse
@@ -133,6 +133,26 @@ pub fn parse_declaration(input: &str) -> IResult<&str, Declaration> {
                 }),
         ),
     ))
+}
+
+pub fn parse_declaration(input: &str) -> IResult<&str, Declaration> {
+    let parse_pattern_declaration = |input| {
+        let (input, pattern) = parse_pattern(input)?;
+
+        let (input, _) = sequence::delimited(multispace0, char('='), multispace0)(input)?;
+
+        let (input, body) = parse_expression(input)?;
+
+        Ok((
+            input,
+            Declaration {
+                pattern,
+                expr: body,
+            },
+        ))
+    };
+
+    branch::alt((parse_function_declaration, parse_pattern_declaration))(input)
 }
 
 #[cfg(test)]
@@ -228,6 +248,25 @@ func x = match x
             Ok((
                 "",
                 Declaration::simple_name("x".to_string(), Expr::Literal(Literal::Integer(5)))
+            ))
+        );
+
+        assert_eq!(
+            parse_declaration("(x,y) = (1,2)"),
+            Ok((
+                "",
+                Declaration {
+                    pattern: Pattern::Tuple(vec![
+                        Pattern::Id("x".to_string()),
+                        Pattern::Id("y".to_string())
+                    ]),
+                    expr: Expr::Tuple {
+                        elements: vec![
+                            Expr::Literal(Literal::Integer(1)),
+                            Expr::Literal(Literal::Integer(2))
+                        ]
+                    }
+                }
             ))
         );
 
