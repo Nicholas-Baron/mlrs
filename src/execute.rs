@@ -168,7 +168,7 @@ fn eval(module: &Module, id: IRId, environment: &Environment) -> Expr {
                         Some(IRItem::Pattern(pattern)) => pattern,
                         _ => panic!(),
                     };
-                    match_pattern(module, &scrutinee, &pattern).map(|env| (expr, env))
+                    match_pattern(module, &scrutinee, pattern).map(|env| (expr, env))
                 })
                 .expect("match expression was not exhaustive");
 

@@ -124,19 +124,7 @@ impl IRItem {
                     }
                 });
             }
-            IRItem::Literal(_) => todo!(),
             IRItem::Pattern(_) => todo!(),
-            IRItem::Tuple { elements } => todo!(),
-            IRItem::EmptyList => todo!(),
-            IRItem::ListCons { item, rest_list } => todo!(),
-            IRItem::Lambda { parameter, body } => todo!(),
-            IRItem::Binary { lhs, rhs, op } => todo!(),
-            IRItem::If {
-                condition,
-                true_value,
-                false_value,
-            } => todo!(),
-            IRItem::Match { scrutinee, arms } => todo!(),
         }
     }
 }
