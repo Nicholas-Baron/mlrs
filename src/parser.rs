@@ -51,11 +51,21 @@ fn parse_pattern(input: &str) -> IResult<&str, Pattern> {
         |elements: &[_]| elements.len() >= 2,
     );
 
+    let parse_list_cons = combinator::verify(
+        sequence::delimited(
+            char('('),
+            multi::separated_list1(sequence::preceded(multispace0, char(':')), parse_pattern),
+            char(')'),
+        ),
+        |elements: &[_]| elements.len() >= 2,
+    );
+
     branch::alt((
         combinator::map(parse_literal, Pattern::Literal),
         combinator::map(parse_identifier, Pattern::Id),
         combinator::map(char('_'), |_| Pattern::Ignore),
         combinator::map(parse_tuple, Pattern::Tuple),
+        combinator::map(parse_list_cons, Pattern::ListCons),
     ))(input)
 }
 
