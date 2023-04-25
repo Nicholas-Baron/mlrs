@@ -203,7 +203,11 @@ fn parse_multiplication(input: &str) -> IResult<&str, Expr> {
     let (input, expr) = parse_application(input)?;
 
     let (input, exprs): (_, Vec<(_, _)>) = multi::many0(sequence::tuple((
-        sequence::delimited(space0, branch::alt((char('*'), char('/'))), space0),
+        sequence::delimited(
+            space0,
+            branch::alt((char('*'), char('/'), char('%'))),
+            space0,
+        ),
         parse_application,
     )))(input)?;
 
@@ -215,6 +219,7 @@ fn parse_multiplication(input: &str) -> IResult<&str, Expr> {
             op: match op {
                 '*' => BinaryOperation::Mult,
                 '/' => todo!("Implement division"),
+                '%' => BinaryOperation::Modulo,
                 _ => unreachable!(),
             },
         }),
