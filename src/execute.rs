@@ -250,6 +250,7 @@ fn evaluate_prim(module: &Module, op: BinaryOperation, lhs: Expr, rhs: Expr) -> 
                 BinaryOperation::Equality => Expr::Literal(Literal::Boolean(lhs == rhs)),
                 BinaryOperation::Minus => Expr::Literal(Literal::Integer(lhs - rhs)),
                 BinaryOperation::Mult => Expr::Literal(Literal::Integer(lhs * rhs)),
+                BinaryOperation::Modulo => Expr::Literal(Literal::Integer(lhs % rhs)),
                 BinaryOperation::Plus => Expr::Literal(Literal::Integer(lhs + rhs)),
                 // TODO: Print panic message
                 BinaryOperation::Prepend | BinaryOperation::Concat => panic!(),
