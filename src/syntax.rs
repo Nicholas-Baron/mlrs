@@ -62,6 +62,7 @@ pub enum Pattern {
     Id(Identifier),
     Literal(Literal),
     Tuple(Vec<Pattern>),
+    ListCons(Vec<Pattern>),
     Ignore,
 }
 
@@ -70,7 +71,7 @@ impl Pattern {
         use std::iter;
         match self {
             Pattern::Id(id) => Box::new(iter::once(id)),
-            Pattern::Tuple(subpatterns) => Box::new(
+            Pattern::Tuple(subpatterns) | Pattern::ListCons(subpatterns) => Box::new(
                 subpatterns
                     .iter()
                     .flat_map(|subpattern| subpattern.bound_names()),
