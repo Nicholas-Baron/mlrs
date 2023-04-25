@@ -228,6 +228,7 @@ fn apply(module: &Module, lhs: Expr, rhs: Expr) -> Expr {
             environment.insert(parameter, rhs);
             eval(module, body, &environment)
         }
+        Expr::Suspend((id, env)) => apply(module, eval(module, id, &env), rhs),
         _ => todo!("cannot apply {rhs:?} to a lhs of {lhs:?}"),
     }
 }
@@ -261,6 +262,10 @@ fn evaluate_prim(module: &Module, op: BinaryOperation, lhs: Expr, rhs: Expr) -> 
             item: Box::new(lhs),
             rest: Box::new(rhs),
         },
+        (BinaryOperation::Equality, Expr::ListCons { .. }, Expr::EmptyList)
+        | (BinaryOperation::Equality, Expr::EmptyList, Expr::ListCons { .. }) => {
+            Expr::Literal(Literal::Boolean(false))
+        }
         prim_op => todo!("cannot evaluate_prim{prim_op:?}"),
     }
 }
