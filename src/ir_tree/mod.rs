@@ -17,6 +17,7 @@ pub enum IRPattern {
     Literal(Literal),
     Identifier(IRId),
     Tuple(Vec<IRId>),
+    ListCons(Vec<IRId>),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -94,7 +95,7 @@ impl IRItem {
                     *id = dest_id.clone();
                 }
             }
-            Self::Literal(_) | Self::EmptyList | Self::Identifier { .. } => {}
+            Self::Literal(_) | Self::EmptyList => {}
             Self::ListCons { item, rest_list } => {
                 if item == src_id {
                     *item = dest_id.clone();
@@ -124,7 +125,24 @@ impl IRItem {
                     }
                 });
             }
-            IRItem::Pattern(_) => todo!(),
+            Self::Identifier { .. } => todo!(),
+            IRItem::Pattern(pattern) => match pattern {
+                IRPattern::Ignore => {}
+                IRPattern::Literal(_) => todo!(),
+                IRPattern::Identifier(x) => {
+                    if x == src_id {
+                        *x = dest_id.clone();
+                    }
+                }
+                IRPattern::Tuple(_) => todo!(),
+                IRPattern::ListCons(elements) => {
+                    for elem in elements {
+                        if elem == src_id {
+                            *elem = dest_id.clone();
+                        }
+                    }
+                }
+            },
         }
     }
 }
@@ -320,11 +338,8 @@ impl Module {
                 let bound_names: Scope = bound_values
                     .iter()
                     .flat_map(|decl| {
-                        let decl_body_id = self.add_decl(decl);
-                        decl.pattern
-                            .bound_names()
-                            .cloned()
-                            .zip(std::iter::repeat(decl_body_id))
+                        let (_, patterns) = self.add_pattern(&decl.pattern);
+                        patterns.unwrap_or_default()
                     })
                     .collect();
                 let name_scope = self.add_new_name_scope();
@@ -387,7 +402,17 @@ impl Module {
                     )),
                 )
             }
-            Pattern::ListCons(_elements) => todo!(),
+            Pattern::ListCons(elements) => {
+                let (patterns, bound_names): (Vec<IRId>, Vec<_>) =
+                    elements.iter().map(|elem| self.add_pattern(elem)).unzip();
+
+                (
+                    IRPattern::ListCons(patterns),
+                    Some(super::utils::join_hashmaps(
+                        bound_names.into_iter().flatten().collect(),
+                    )),
+                )
+            }
         };
 
         let ir_id = self.next_ir_id();
