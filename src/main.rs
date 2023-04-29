@@ -54,6 +54,9 @@ fn ir_from_file(filename: &Path, debug: bool) -> ir_tree::Module {
                     }
                     Expr(expr) => {
                         let expr_id = ir_mod.add_expr(&expr);
+                        if debug {
+                            println!("{:?}", ir_mod);
+                        }
                         print_result(evaluate_id(&ir_mod, expr_id), debug.then_some(&ir_mod));
                     }
                 }
