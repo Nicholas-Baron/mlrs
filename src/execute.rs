@@ -108,8 +108,21 @@ fn eval(module: &Module, id: IRId, environment: &Environment) -> Expr {
     }
 
     match module.get_item(&id).cloned().unwrap() {
-        ident @ IRItem::Identifier { .. } => {
-            unreachable!("tried to evaluate {ident:?} that is not in {environment:?}")
+        IRItem::Identifier {
+            declaring_item: Some(ref decl_id),
+            ..
+        } => {
+            if let Some(Expr::Suspend((ir_id, environment))) = environment.get(&decl_id) {
+                eval(module, ir_id.clone(), environment)
+            } else {
+                eval(module, decl_id.clone(), environment)
+            }
+        }
+        ident @ IRItem::Identifier {
+            declaring_item: None,
+            ..
+        } => {
+            unreachable!("tried to evaluate {ident:?} that is not in {environment:?} and has no declaring_item")
         }
         pattern @ IRItem::Pattern(_) => {
             unreachable!("Tried to evaluate {pattern:?}")
@@ -173,6 +186,25 @@ fn eval(module: &Module, id: IRId, environment: &Environment) -> Expr {
                 .expect("match expression was not exhaustive");
 
             eval(module, selected_arm, &env)
+        }
+        IRItem::Binding { .. } => todo!(),
+        IRItem::Let {
+            binding_list,
+            inner_expr,
+        } => {
+            let mut new_env = environment.clone();
+            for binding_id in binding_list {
+                let IRItem::Binding { pattern, value } = module.get_item(&binding_id).unwrap() else {panic!("let's binding_list contained a non-binding")};
+
+                let IRItem::Pattern(pattern)= module.get_item(&pattern).unwrap()else{panic!("binding does not have a pattern lhs")};
+
+                new_env.extend(
+                    match_pattern(module, &eval(module, value.clone(), environment), pattern)
+                        .unwrap_or_default(),
+                );
+            }
+
+            eval(module, inner_expr, &new_env)
         }
     }
 }
