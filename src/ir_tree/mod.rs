@@ -54,6 +54,14 @@ pub enum IRItem {
         scrutinee: IRId,
         arms: Vec<(IRId, IRId)>,
     },
+    Binding {
+        pattern: IRId,
+        value: IRId,
+    },
+    Let {
+        binding_list: Vec<IRId>,
+        inner_expr: IRId,
+    },
 }
 
 impl IRItem {
@@ -143,6 +151,27 @@ impl IRItem {
                     }
                 }
             },
+            Self::Binding { pattern, value } => {
+                if pattern == src_id {
+                    *pattern = dest_id.clone();
+                }
+                if value == src_id {
+                    *value = src_id.clone();
+                }
+            }
+            Self::Let {
+                binding_list,
+                inner_expr,
+            } => {
+                if inner_expr == src_id {
+                    *inner_expr = dest_id.clone();
+                }
+                for binding in binding_list {
+                    if binding == src_id {
+                        *binding = dest_id.clone();
+                    }
+                }
+            }
         }
     }
 }
@@ -237,12 +266,25 @@ impl Module {
         // We need to allow recursive bindings.
         // To do so, we can rewrite an id after it has been added.
         let temp_ir_id = self.next_ir_id();
+        let (pattern_id, new_names) = self.add_pattern(pattern, &temp_ir_id);
         let scope = self.current_name_scope();
-        for name in pattern.bound_names() {
-            scope.insert(name.clone(), temp_ir_id.clone());
+
+        if let Some(new_names) = new_names {
+            *scope = new_names;
+
+            let binding_id = self.next_ir_id();
+            self.ir_items.insert(
+                binding_id,
+                IRItem::Binding {
+                    pattern: pattern_id,
+                    value: temp_ir_id.clone(),
+                },
+            );
         }
+
         let new_ir_id = self.add_expr(expr);
         self.rewrite_id_to(&new_ir_id, &temp_ir_id);
+
         new_ir_id
     }
 
@@ -335,25 +377,53 @@ impl Module {
                 bound_values,
                 inner_expr,
             } => {
-                let bound_names: Scope = bound_values
-                    .iter()
-                    .flat_map(|decl| {
-                        let (_, patterns) = self.add_pattern(&decl.pattern);
-                        patterns.unwrap_or_default()
-                    })
-                    .collect();
-                let name_scope = self.add_new_name_scope();
-                *name_scope = bound_names;
+                let ir_id = self.next_ir_id();
+                let mut bound_names = Scope::new();
+
+                let binding_list = if !bound_values.is_empty() {
+                    let mut bindings = vec![];
+                    for syntax::Declaration { pattern, expr } in bound_values {
+                        let (pattern_id, new_names) = self.add_pattern(pattern, &ir_id);
+                        let expr_id = self.add_expr(expr);
+
+                        if let Some(new_names) = new_names {
+                            bound_names.extend(new_names);
+
+                            let binding_id = self.next_ir_id();
+                            self.ir_items.insert(
+                                binding_id.clone(),
+                                IRItem::Binding {
+                                    pattern: pattern_id,
+                                    value: expr_id,
+                                },
+                            );
+                            bindings.push(binding_id);
+                        }
+                    }
+                    bindings
+                } else {
+                    Vec::default()
+                };
+
+                *self.add_new_name_scope() = bound_names;
                 let inner_expr = self.add_expr(inner_expr);
                 self.hide_top_name_scope();
-                return inner_expr;
+
+                (
+                    ir_id,
+                    IRItem::Let {
+                        inner_expr,
+                        binding_list,
+                    },
+                )
             }
             Expr::Match { scrutinee, arms } => {
                 let scrutinee = self.add_expr(scrutinee);
+                let ir_id = self.next_ir_id();
                 let lowered_arms = arms
                     .iter()
                     .map(|(pattern, expr)| {
-                        let (pattern, bound_names) = self.add_pattern(pattern);
+                        let (pattern, bound_names) = self.add_pattern(pattern, &ir_id);
                         let inner_expr = if let Some(bound_names) = bound_names {
                             let name_scope = self.add_new_name_scope();
                             *name_scope = bound_names;
@@ -367,7 +437,7 @@ impl Module {
                     })
                     .collect();
                 (
-                    self.next_ir_id(),
+                    ir_id,
                     IRItem::Match {
                         scrutinee,
                         arms: lowered_arms,
@@ -381,19 +451,27 @@ impl Module {
         expr_id
     }
 
-    fn add_pattern(&mut self, pattern: &syntax::Pattern) -> (IRId, Option<HashMap<String, IRId>>) {
+    fn add_pattern(
+        &mut self,
+        pattern: &syntax::Pattern,
+        declaring_item: &IRId,
+    ) -> (IRId, Option<Scope>) {
+        let mut insert_id_item_data: Option<(_, _)> = None;
         let (pattern, bound_names) = match pattern {
             Pattern::Id(id) => {
                 let mut bound_names = HashMap::new();
                 let ir_id = self.next_ir_id();
                 bound_names.insert(id.clone(), ir_id.clone());
+                insert_id_item_data = Some((ir_id.clone(), id));
                 (IRPattern::Identifier(ir_id), Some(bound_names))
             }
             Pattern::Ignore => (IRPattern::Ignore, None),
             Pattern::Literal(lit) => (IRPattern::Literal(lit.clone()), None),
             Pattern::Tuple(elements) => {
-                let (patterns, bound_names): (Vec<IRId>, Vec<_>) =
-                    elements.iter().map(|elem| self.add_pattern(elem)).unzip();
+                let (patterns, bound_names): (Vec<IRId>, Vec<_>) = elements
+                    .iter()
+                    .map(|elem| self.add_pattern(elem, declaring_item))
+                    .unzip();
 
                 (
                     IRPattern::Tuple(patterns),
@@ -403,8 +481,10 @@ impl Module {
                 )
             }
             Pattern::ListCons(elements) => {
-                let (patterns, bound_names): (Vec<IRId>, Vec<_>) =
-                    elements.iter().map(|elem| self.add_pattern(elem)).unzip();
+                let (patterns, bound_names): (Vec<IRId>, Vec<_>) = elements
+                    .iter()
+                    .map(|elem| self.add_pattern(elem, declaring_item))
+                    .unzip();
 
                 (
                     IRPattern::ListCons(patterns),
@@ -418,6 +498,17 @@ impl Module {
         let ir_id = self.next_ir_id();
         self.ir_items
             .insert(ir_id.clone(), IRItem::Pattern(pattern));
+
+        if let Some((bound_id, id)) = insert_id_item_data {
+            self.ir_items.insert(
+                bound_id.clone(),
+                IRItem::Identifier {
+                    name: id.to_string(),
+                    declaring_item: Some(declaring_item.clone()),
+                },
+            );
+        }
+
         (ir_id, bound_names)
     }
 
@@ -494,7 +585,18 @@ mod tests {
 
         println!("{:?}", module);
 
-        assert!(match module.ir_items.get(f_id.unwrap()) {
+        let f_ir_item = module.ir_items.get(f_id.unwrap());
+        println!("{:?}", f_ir_item);
+
+        let declaring_id: IRId = match f_ir_item {
+            Some(IRItem::Identifier {
+                name: _,
+                declaring_item: Some(source_id),
+            }) => source_id.clone(),
+            _ => panic!(),
+        };
+
+        assert!(match module.ir_items.get(&declaring_id) {
             Some(&IRItem::Lambda {
                 ref parameter,
                 ref body,
@@ -589,7 +691,18 @@ mod tests {
         let outer_id = module.find_identifier(&"outer".to_string());
         assert_ne!(outer_id, None);
 
-        assert!(match module.get_item(outer_id.unwrap()) {
+        let outer_ir_item = module.ir_items.get(outer_id.unwrap());
+        println!("{:?}", outer_ir_item);
+
+        let declaring_id: IRId = match outer_ir_item {
+            Some(IRItem::Identifier {
+                name: _,
+                declaring_item: Some(source_id),
+            }) => source_id.clone(),
+            _ => panic!(),
+        };
+
+        assert!(match module.ir_items.get(&declaring_id) {
             Some(&IRItem::Lambda { .. }) => true,
             _ => false,
         });
