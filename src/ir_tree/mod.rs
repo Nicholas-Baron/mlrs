@@ -501,7 +501,7 @@ impl Module {
 
         if let Some((bound_id, id)) = insert_id_item_data {
             self.ir_items.insert(
-                bound_id.clone(),
+                bound_id,
                 IRItem::Identifier {
                     name: id.to_string(),
                     declaring_item: Some(declaring_item.clone()),
