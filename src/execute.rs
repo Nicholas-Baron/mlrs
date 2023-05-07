@@ -112,7 +112,7 @@ fn eval(module: &Module, id: IRId, environment: &Environment) -> Expr {
             declaring_item: Some(ref decl_id),
             ..
         } => {
-            if let Some(Expr::Suspend((ir_id, environment))) = environment.get(&decl_id) {
+            if let Some(Expr::Suspend((ir_id, environment))) = environment.get(decl_id) {
                 eval(module, ir_id.clone(), environment)
             } else {
                 eval(module, decl_id.clone(), environment)
@@ -196,7 +196,7 @@ fn eval(module: &Module, id: IRId, environment: &Environment) -> Expr {
             for binding_id in binding_list {
                 let IRItem::Binding { pattern, value } = module.get_item(&binding_id).unwrap() else {panic!("let's binding_list contained a non-binding")};
 
-                let IRItem::Pattern(pattern)= module.get_item(&pattern).unwrap()else{panic!("binding does not have a pattern lhs")};
+                let IRItem::Pattern(pattern)= module.get_item(pattern).unwrap()else{panic!("binding does not have a pattern lhs")};
 
                 new_env.extend(
                     match_pattern(module, &eval(module, value.clone(), environment), pattern)
