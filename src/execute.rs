@@ -246,6 +246,37 @@ fn match_pattern(module: &Module, scrutinee: &Expr, pattern: &IRPattern) -> Opti
             env.insert(rhs.clone(), lhs.clone());
             Some(env)
         }
+        (whole_list @ Expr::ListCons { item, rest }, IRPattern::ListCons(items)) => {
+            if items.is_empty() {
+                todo!("match pattern {items:?} with {item:?}:{rest:?}");
+            }
+
+            let is_base_case = items.len() == 1;
+
+            let first_item = match_pattern(
+                module,
+                if is_base_case { whole_list } else { item },
+                match module.get_item(&items[0]) {
+                    Some(IRItem::Pattern(pattern)) => pattern,
+                    e => panic!("Found {e:?} in a pattern"),
+                },
+            );
+
+            if is_base_case {
+                return first_item;
+            }
+
+            // Known: items.len() is at least 2
+
+            let rest_items = match_pattern(module, rest, &IRPattern::ListCons(items[1..].to_vec()));
+
+            match (first_item, rest_items) {
+                (Some(first), Some(rest)) => {
+                    Some(super::utils::join_hashmaps([first, rest].to_vec()))
+                }
+                _ => None,
+            }
+        }
         _ => None,
     }
 }
@@ -290,6 +321,23 @@ fn evaluate_prim(module: &Module, op: BinaryOperation, lhs: Expr, rhs: Expr) -> 
             }
         }
         (BinaryOperation::Concat, Expr::EmptyList, Expr::EmptyList) => Expr::EmptyList,
+        (BinaryOperation::Concat, Expr::EmptyList, list @ Expr::ListCons { .. }) => list,
+        (
+            BinaryOperation::Concat,
+            Expr::ListCons {
+                item: lhs_item,
+                rest: lhs_rest,
+            },
+            rhs @ Expr::ListCons { .. },
+        ) => Expr::ListCons {
+            item: lhs_item,
+            rest: Box::new(evaluate_prim(
+                module,
+                BinaryOperation::Concat,
+                *lhs_rest,
+                rhs,
+            )),
+        },
         (BinaryOperation::Prepend, lhs, rhs) => Expr::ListCons {
             item: Box::new(lhs),
             rest: Box::new(rhs),
