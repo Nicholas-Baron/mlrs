@@ -66,21 +66,6 @@ pub enum Pattern {
     Ignore,
 }
 
-impl Pattern {
-    pub fn bound_names(&self) -> Box<dyn Iterator<Item = &Identifier> + '_> {
-        use std::iter;
-        match self {
-            Pattern::Id(id) => Box::new(iter::once(id)),
-            Pattern::Tuple(subpatterns) | Pattern::ListCons(subpatterns) => Box::new(
-                subpatterns
-                    .iter()
-                    .flat_map(|subpattern| subpattern.bound_names()),
-            ),
-            Pattern::Literal(_) | Pattern::Ignore => Box::new(iter::empty()),
-        }
-    }
-}
-
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum BinaryOperation {
     Application,
