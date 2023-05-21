@@ -270,7 +270,9 @@ impl Module {
         let scope = self.current_name_scope();
 
         if let Some(new_names) = new_names {
-            *scope = new_names;
+            for (key, value) in new_names {
+                scope.insert(key, value);
+            }
 
             let binding_id = self.next_ir_id();
             self.ir_items.insert(
@@ -727,5 +729,59 @@ mod tests {
 
         let x_id = module.find_identifier(&"x".to_string());
         assert_eq!(x_id, None);
+    }
+
+    #[test]
+    fn lowers_two_declaractions() {
+        let x_decl = syntax::Declaration::simple_name(
+            "x".to_string(),
+            syntax::Expr::Literal(Literal::Integer(5)),
+        );
+
+        let mut module = Module::new();
+        let x_id = module.add_decl(&x_decl);
+
+        let y_decl = syntax::Declaration::simple_name(
+            "y".to_string(),
+            syntax::Expr::Literal(Literal::Integer(10)),
+        );
+
+        let y_id = module.add_decl(&y_decl);
+
+        let addition = syntax::Expr::Binary {
+            lhs: Box::new(syntax::Expr::Identifier("x".to_string())),
+            rhs: Box::new(syntax::Expr::Identifier("y".to_string())),
+            op: BinaryOperation::Plus,
+        };
+
+        let add_id = module.add_expr(&addition);
+
+        dbg!(module.get_item(&add_id), &x_id, &y_id, &module);
+
+        if let Some(IRItem::Binary {
+            lhs,
+            rhs,
+            op: BinaryOperation::Plus,
+        }) = module.get_item(&add_id)
+        {
+            if let (
+                Some(IRItem::Identifier {
+                    declaring_item: Some(lhs_decl),
+                    ..
+                }),
+                Some(IRItem::Identifier {
+                    declaring_item: Some(rhs_decl),
+                    ..
+                }),
+            ) = (module.get_item(lhs), module.get_item(rhs))
+            {
+                assert_eq!(*lhs_decl, x_id);
+                assert_eq!(*rhs_decl, y_id);
+            } else {
+                panic!()
+            }
+        } else {
+            panic!()
+        }
     }
 }
