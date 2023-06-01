@@ -246,17 +246,17 @@ fn match_pattern(module: &Module, scrutinee: &Expr, pattern: &IRPattern) -> Opti
             env.insert(rhs.clone(), lhs.clone());
             Some(env)
         }
-        (whole_list @ Expr::ListCons { item, rest }, IRPattern::ListCons(items)) => {
-            if items.is_empty() {
-                todo!("match pattern {items:?} with {item:?}:{rest:?}");
+        (whole_list @ Expr::ListCons { item, rest }, IRPattern::ListCons(pattern_items)) => {
+            if pattern_items.is_empty() {
+                todo!("match pattern {pattern_items:?} with {item:?}:{rest:?}");
             }
 
-            let is_base_case = items.len() == 1;
+            let is_base_case = pattern_items.len() == 1;
 
             let first_item = match_pattern(
                 module,
                 if is_base_case { whole_list } else { item },
-                match module.get_item(&items[0]) {
+                match module.get_item(&pattern_items[0]) {
                     Some(IRItem::Pattern(pattern)) => pattern,
                     e => panic!("Found {e:?} in a pattern"),
                 },
@@ -268,7 +268,11 @@ fn match_pattern(module: &Module, scrutinee: &Expr, pattern: &IRPattern) -> Opti
 
             // Known: items.len() is at least 2
 
-            let rest_items = match_pattern(module, rest, &IRPattern::ListCons(items[1..].to_vec()));
+            let rest_items = match_pattern(
+                module,
+                rest,
+                &IRPattern::ListCons(pattern_items[1..].to_vec()),
+            );
 
             match (first_item, rest_items) {
                 (Some(first), Some(rest)) => {
