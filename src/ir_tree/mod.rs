@@ -2,6 +2,9 @@ use crate::syntax::{self, BinaryOperation, Identifier, Literal, Pattern};
 
 use std::collections::HashMap;
 
+mod error;
+use error::LoweringError;
+
 #[derive(Default, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct IRId(u32);
 
@@ -178,6 +181,8 @@ impl IRItem {
 
 type Scope = HashMap<Identifier, IRId>;
 
+type LoweringResult<T> = Result<T, LoweringError>;
+
 #[derive(Default, Debug)]
 pub struct Module {
     ir_items: HashMap<IRId, IRItem>,
@@ -191,19 +196,19 @@ impl Module {
     }
 
     #[cfg(test)]
-    pub fn from_expr(expr: &syntax::Expr) -> (Self, IRId) {
+    pub fn from_expr(expr: &syntax::Expr) -> LoweringResult<(Self, IRId)> {
         let mut module = Self::new();
-        let expr_id = module.add_expr(expr);
-        (module, expr_id)
+        let expr_id = module.add_expr(expr)?;
+        Ok((module, expr_id))
     }
 
     #[cfg(test)]
-    pub fn from_decls(decls: &[syntax::Declaration]) -> Self {
+    pub fn from_decls(decls: &[syntax::Declaration]) -> LoweringResult<Self> {
         let mut module = Self::new();
-        decls.iter().for_each(|decl| {
-            module.add_decl(decl);
-        });
-        module
+        for decl in decls {
+            module.add_decl(decl)?;
+        }
+        Ok(module)
     }
 
     /// Add a fresh name scope, returning it for convenience.
@@ -260,7 +265,7 @@ impl Module {
         }
     }
 
-    pub fn add_decl(&mut self, decl: &syntax::Declaration) -> IRId {
+    pub fn add_decl(&mut self, decl: &syntax::Declaration) -> LoweringResult<IRId> {
         let syntax::Declaration { pattern, expr } = decl;
 
         // We need to allow recursive bindings.
@@ -284,22 +289,23 @@ impl Module {
             );
         }
 
-        let new_ir_id = self.add_expr(expr);
+        let new_ir_id = self.add_expr(expr)?;
         self.rewrite_id_to(&new_ir_id, &temp_ir_id);
 
-        new_ir_id
+        Ok(new_ir_id)
     }
 
-    pub fn add_expr(&mut self, expr: &syntax::Expr) -> IRId {
+    pub fn add_expr(&mut self, expr: &syntax::Expr) -> Result<IRId, LoweringError> {
         use syntax::Expr;
 
         let (expr_id, ir_expr) = match expr {
             Expr::Literal(x) => (self.next_ir_id(), IRItem::Literal(x.clone())),
             Expr::Identifier(ident) => {
-                return match self.find_identifier(ident).cloned() {
-                    Some(id) => id,
-                    None => panic!("Could not find identifier '{}' in module {:?}", ident, self),
-                }
+                return self.find_identifier(ident).cloned().ok_or_else(|| {
+                    LoweringError::MissingIdentifier {
+                        name: ident.clone(),
+                    }
+                });
             }
             Expr::List { elements } => {
                 let mut list_so_far;
@@ -307,7 +313,7 @@ impl Module {
 
                 for item in elements.iter().rev() {
                     list_so_far = IRItem::ListCons {
-                        item: self.add_expr(item),
+                        item: self.add_expr(item)?,
                         rest_list: last_id.take().unwrap(),
                     };
                     last_id = Some(self.next_ir_id());
@@ -315,14 +321,22 @@ impl Module {
                         .insert(last_id.as_ref().unwrap().clone(), list_so_far);
                 }
 
-                return last_id.unwrap();
+                return Ok(last_id.unwrap());
             }
-            Expr::Tuple { elements } => (
-                self.next_ir_id(),
-                IRItem::Tuple {
-                    elements: elements.iter().map(|expr| self.add_expr(expr)).collect(),
-                },
-            ),
+            Expr::Tuple { elements } => {
+                let mut ir_elements = vec![];
+                for elem in elements {
+                    ir_elements.push(self.add_expr(elem)?);
+                }
+
+                (
+                    self.next_ir_id(),
+                    IRItem::Tuple {
+                        elements: ir_elements,
+                    },
+                )
+            }
+
             Expr::Lambda { body, parameter } => (
                 self.next_ir_id(),
                 // NOTE: The initalization order here matters.
@@ -346,7 +360,7 @@ impl Module {
                         Pattern::Tuple(_) | Pattern::ListCons(_) => todo!(),
                         Pattern::Ignore => {}
                     }
-                    let body = self.add_expr(body);
+                    let body = self.add_expr(body)?;
                     self.hide_top_name_scope();
 
                     IRItem::Lambda {
@@ -358,8 +372,8 @@ impl Module {
             Expr::Binary { lhs, rhs, ref op } => (
                 self.next_ir_id(),
                 IRItem::Binary {
-                    lhs: self.add_expr(lhs),
-                    rhs: self.add_expr(rhs),
+                    lhs: self.add_expr(lhs)?,
+                    rhs: self.add_expr(rhs)?,
                     op: op.clone(),
                 },
             ),
@@ -370,9 +384,9 @@ impl Module {
             } => (
                 self.next_ir_id(),
                 IRItem::If {
-                    condition: self.add_expr(condition),
-                    true_value: self.add_expr(true_value),
-                    false_value: self.add_expr(false_value),
+                    condition: self.add_expr(condition)?,
+                    true_value: self.add_expr(true_value)?,
+                    false_value: self.add_expr(false_value)?,
                 },
             ),
             Expr::Let {
@@ -396,7 +410,7 @@ impl Module {
                                 binding_id.clone(),
                                 IRItem::Binding {
                                     pattern: pattern_id,
-                                    value: expr_id,
+                                    value: expr_id?,
                                 },
                             );
                             bindings.push(binding_id);
@@ -408,7 +422,7 @@ impl Module {
                 };
 
                 *self.add_new_name_scope() = bound_names;
-                let inner_expr = self.add_expr(inner_expr);
+                let inner_expr = self.add_expr(inner_expr)?;
                 self.hide_top_name_scope();
 
                 (
@@ -420,24 +434,25 @@ impl Module {
                 )
             }
             Expr::Match { scrutinee, arms } => {
-                let scrutinee = self.add_expr(scrutinee);
+                let scrutinee = self.add_expr(scrutinee)?;
+
                 let ir_id = self.next_ir_id();
-                let lowered_arms = arms
-                    .iter()
-                    .map(|(pattern, expr)| {
-                        let (pattern, bound_names) = self.add_pattern(pattern, &ir_id);
-                        let inner_expr = if let Some(bound_names) = bound_names {
-                            let name_scope = self.add_new_name_scope();
-                            *name_scope = bound_names;
-                            let inner_expr = self.add_expr(expr);
-                            self.hide_top_name_scope();
-                            inner_expr
-                        } else {
-                            self.add_expr(expr)
-                        };
-                        (pattern, inner_expr)
-                    })
-                    .collect();
+                let mut lowered_arms = vec![];
+                for (pattern, expr) in arms {
+                    let (pattern, bound_names) = self.add_pattern(pattern, &ir_id);
+                    let inner_expr = if let Some(bound_names) = bound_names {
+                        let name_scope = self.add_new_name_scope();
+                        *name_scope = bound_names;
+                        let inner_expr = self.add_expr(expr)?;
+                        self.hide_top_name_scope();
+                        inner_expr
+                    } else {
+                        self.add_expr(expr)?
+                    };
+
+                    lowered_arms.push((pattern, inner_expr));
+                }
+
                 (
                     ir_id,
                     IRItem::Match {
@@ -450,7 +465,7 @@ impl Module {
             _ => todo!("Unimplemented lowering for {expr:?}"),
         };
         self.ir_items.insert(expr_id.clone(), ir_expr);
-        expr_id
+        Ok(expr_id)
     }
 
     fn add_pattern(
@@ -549,7 +564,7 @@ mod tests {
             }),
         };
 
-        let (module, lambda_id) = Module::from_expr(&lambda);
+        let (module, lambda_id) = Module::from_expr(&lambda).unwrap();
         assert_eq!(module.name_scopes.len(), 0);
 
         let x_id = module.find_identifier(&"x".to_string());
@@ -577,7 +592,7 @@ mod tests {
             },
         );
 
-        let module = Module::from_decls(&[lambda]);
+        let module = Module::from_decls(&[lambda]).unwrap();
         assert_eq!(module.name_scopes.len(), 1);
 
         let f_id = module.find_identifier(&"f".to_string());
@@ -614,7 +629,7 @@ mod tests {
             syntax::Expr::Literal(Literal::Integer(5)),
         );
 
-        let mut module = Module::from_decls(&[x_bind]);
+        let mut module = Module::from_decls(&[x_bind]).unwrap();
         assert_eq!(module.name_scopes.len(), 1);
 
         let f_id = module.find_identifier(&"f".to_string());
@@ -625,11 +640,13 @@ mod tests {
 
         println!("{:?}", module);
 
-        let sum_id = module.add_expr(&syntax::Expr::Binary {
-            op: BinaryOperation::Plus,
-            lhs: Box::new(syntax::Expr::Identifier("x".to_string())),
-            rhs: Box::new(syntax::Expr::Literal(Literal::Integer(10))),
-        });
+        let sum_id = module
+            .add_expr(&syntax::Expr::Binary {
+                op: BinaryOperation::Plus,
+                lhs: Box::new(syntax::Expr::Identifier("x".to_string())),
+                rhs: Box::new(syntax::Expr::Literal(Literal::Integer(10))),
+            })
+            .unwrap();
 
         let sum_ir = module.get_item(&sum_id).cloned().unwrap();
         if let IRItem::Binary { lhs, .. } = sum_ir {
@@ -646,7 +663,7 @@ mod tests {
             syntax::Expr::Identifier("x".to_string()),
         );
 
-        let module = Module::from_decls(&[x_bind]);
+        let module = Module::from_decls(&[x_bind]).unwrap();
         assert_eq!(module.name_scopes.len(), 1);
 
         let f_id = module.find_identifier(&"f".to_string());
@@ -682,7 +699,7 @@ mod tests {
             },
         );
 
-        let module = Module::from_decls(&[outer_lambda]);
+        let module = Module::from_decls(&[outer_lambda]).unwrap();
         assert_eq!(module.name_scopes.len(), 1);
         println!("{:?}", module);
 
@@ -723,7 +740,7 @@ mod tests {
             },
         );
 
-        let module = Module::from_decls(&[const_func]);
+        let module = Module::from_decls(&[const_func]).unwrap();
         assert_eq!(module.name_scopes.len(), 1);
         println!("{:?}", module);
 
@@ -739,14 +756,14 @@ mod tests {
         );
 
         let mut module = Module::new();
-        let x_id = module.add_decl(&x_decl);
+        let x_id = module.add_decl(&x_decl).unwrap();
 
         let y_decl = syntax::Declaration::simple_name(
             "y".to_string(),
             syntax::Expr::Literal(Literal::Integer(10)),
         );
 
-        let y_id = module.add_decl(&y_decl);
+        let y_id = module.add_decl(&y_decl).unwrap();
 
         let addition = syntax::Expr::Binary {
             lhs: Box::new(syntax::Expr::Identifier("x".to_string())),
@@ -754,7 +771,7 @@ mod tests {
             op: BinaryOperation::Plus,
         };
 
-        let add_id = module.add_expr(&addition);
+        let add_id = module.add_expr(&addition).unwrap();
 
         dbg!(module.get_item(&add_id), &x_id, &y_id, &module);
 
