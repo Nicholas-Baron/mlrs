@@ -30,6 +30,25 @@ struct Options {
     interactive: bool,
 }
 
+fn add_decl_or_expr(ir_mod: &mut ir_tree::Module, decl_or_expr: parser::DeclOrExpr, debug: bool) {
+    use parser::DeclOrExpr::*;
+    let lowering_result = match decl_or_expr {
+        Decl(decl) => ir_mod.add_decl(&decl),
+        Expr(expr) => ir_mod.add_expr(&expr),
+    };
+
+    match lowering_result {
+        Ok(expr_id) => {
+            if debug {
+                println!("{:?}", ir_mod);
+            }
+
+            print_result(evaluate_id(&ir_mod, expr_id), debug.then_some(&ir_mod));
+        }
+        Err(e) => eprintln!("{}", e),
+    }
+}
+
 fn ir_from_file(filename: &Path, debug: bool) -> ir_tree::Module {
     let file_data = match fs::read_to_string(filename) {
         Ok(data) => data,
@@ -47,19 +66,7 @@ fn ir_from_file(filename: &Path, debug: bool) -> ir_tree::Module {
             }
 
             for decl_or_expr in items {
-                use parser::DeclOrExpr::*;
-                match decl_or_expr {
-                    Decl(decl) => {
-                        ir_mod.add_decl(&decl);
-                    }
-                    Expr(expr) => {
-                        let expr_id = ir_mod.add_expr(&expr);
-                        if debug {
-                            println!("{:?}", ir_mod);
-                        }
-                        print_result(evaluate_id(&ir_mod, expr_id), debug.then_some(&ir_mod));
-                    }
-                }
+                add_decl_or_expr(&mut ir_mod, decl_or_expr, debug);
             }
         }
         Err(e) => {
@@ -99,7 +106,10 @@ fn interact_with(input: io::Stdin, mut ir_mod: ir_tree::Module, debug: bool) {
         };
 
         if is_expr {
-            print_result(evaluate_id(&ir_mod, new_id), debug.then_some(&ir_mod));
+            match new_id {
+                Ok(new_id) => print_result(evaluate_id(&ir_mod, new_id), debug.then_some(&ir_mod)),
+                Err(e) => eprintln!("{}", e),
+            }
         }
     }
 }
@@ -141,7 +151,7 @@ mod test {
             Err(e) => panic!("{}", e),
         };
 
-        let (ir_mod, expr_id) = ir_tree::Module::from_expr(&expr);
+        let (ir_mod, expr_id) = ir_tree::Module::from_expr(&expr).unwrap();
         println!("{:?}", ir_mod);
 
         let result = evaluate_id(&ir_mod, expr_id);
@@ -160,7 +170,7 @@ mod test {
             Err(e) => panic!("{}", e),
         };
 
-        let mut ir_mod = ir_tree::Module::from_decls(&[decl]);
+        let mut ir_mod = ir_tree::Module::from_decls(&[decl]).unwrap();
         println!("{:?}", ir_mod);
 
         let line = "f 10";
@@ -171,7 +181,7 @@ mod test {
             }
             Err(e) => panic!("{}", e),
         };
-        let expr_id = ir_mod.add_expr(&expr);
+        let expr_id = ir_mod.add_expr(&expr).unwrap();
 
         let result = evaluate_id(&ir_mod, expr_id);
         println!("{:?}", result);
@@ -189,7 +199,7 @@ mod test {
             Err(e) => panic!("{}", e),
         };
 
-        let mut ir_mod = ir_tree::Module::from_decls(&[decl]);
+        let mut ir_mod = ir_tree::Module::from_decls(&[decl]).unwrap();
         println!("{:?}", ir_mod);
 
         let line = "double 10";
@@ -200,7 +210,7 @@ mod test {
             }
             Err(e) => panic!("{}", e),
         };
-        let expr_id = ir_mod.add_expr(&expr);
+        let expr_id = ir_mod.add_expr(&expr).unwrap();
 
         let result = evaluate_id(&ir_mod, expr_id);
         println!("{:?}", result);
@@ -218,7 +228,7 @@ mod test {
             Err(e) => panic!("{}", e),
         };
 
-        let (mut ir_mod, expr_id) = ir_tree::Module::from_expr(&expr);
+        let (mut ir_mod, expr_id) = ir_tree::Module::from_expr(&expr).unwrap();
         println!("{:?}", ir_mod);
 
         let result = evaluate_id(&ir_mod, expr_id);
@@ -233,7 +243,7 @@ mod test {
             }
             Err(e) => panic!("{}", e),
         };
-        let expr_id = ir_mod.add_expr(&expr);
+        let expr_id = ir_mod.add_expr(&expr).unwrap();
 
         let result = evaluate_id(&ir_mod, expr_id);
         println!("{:?}", result);
@@ -251,7 +261,7 @@ mod test {
             Err(e) => panic!("{}", e),
         };
 
-        let (mut ir_mod, expr_id) = ir_tree::Module::from_expr(&expr);
+        let (mut ir_mod, expr_id) = ir_tree::Module::from_expr(&expr).unwrap();
         println!("{:?}", ir_mod);
 
         let result = evaluate_id(&ir_mod, expr_id);
@@ -266,7 +276,7 @@ mod test {
             }
             Err(e) => panic!("{}", e),
         };
-        let decl_id = ir_mod.add_decl(&decl);
+        let decl_id = ir_mod.add_decl(&decl).unwrap();
 
         let result = evaluate_id(&ir_mod, decl_id);
         println!("{:?}", result);
@@ -289,7 +299,7 @@ mod test {
             Err(e) => panic!("{}", e),
         };
 
-        let mut ir_mod = ir_tree::Module::from_decls(&[func]);
+        let mut ir_mod = ir_tree::Module::from_decls(&[func]).unwrap();
 
         let line = "plusTen 3";
         let expr = match parser::parse_expression(&line) {
@@ -299,7 +309,7 @@ mod test {
             }
             Err(e) => panic!("{}", e),
         };
-        let expr_id = ir_mod.add_expr(&expr);
+        let expr_id = ir_mod.add_expr(&expr).unwrap();
         println!("{:?}", ir_mod);
 
         let result = evaluate_id(&ir_mod, expr_id);
