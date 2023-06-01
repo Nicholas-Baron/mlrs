@@ -281,6 +281,20 @@ fn match_pattern(module: &Module, scrutinee: &Expr, pattern: &IRPattern) -> Opti
                 _ => None,
             }
         }
+        (Expr::EmptyList, IRPattern::ListCons(items)) => {
+            if items.len() == 1 {
+                match_pattern(
+                    module,
+                    scrutinee,
+                    match module.get_item(&items[0]) {
+                        Some(IRItem::Pattern(pattern)) => pattern,
+                        _ => todo!(),
+                    },
+                )
+            } else {
+                None
+            }
+        }
         _ => None,
     }
 }
@@ -349,6 +363,9 @@ fn evaluate_prim(module: &Module, op: BinaryOperation, lhs: Expr, rhs: Expr) -> 
         (BinaryOperation::Equality, Expr::ListCons { .. }, Expr::EmptyList)
         | (BinaryOperation::Equality, Expr::EmptyList, Expr::ListCons { .. }) => {
             Expr::Literal(Literal::Boolean(false))
+        }
+        (BinaryOperation::Equality, Expr::EmptyList, Expr::EmptyList) => {
+            Expr::Literal(Literal::Boolean(true))
         }
         prim_op => todo!("cannot evaluate_prim{prim_op:?}"),
     }
