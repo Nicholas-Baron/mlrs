@@ -43,7 +43,7 @@ fn add_decl_or_expr(ir_mod: &mut ir_tree::Module, decl_or_expr: parser::DeclOrEx
                 println!("{:?}", ir_mod);
             }
 
-            print_result(evaluate_id(&ir_mod, expr_id), debug.then_some(&ir_mod));
+            print_result(evaluate_id(ir_mod, expr_id), debug.then_some(ir_mod));
         }
         Err(e) => eprintln!("{}", e),
     }
