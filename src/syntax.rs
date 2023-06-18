@@ -63,6 +63,7 @@ pub enum Pattern {
     Literal(Literal),
     Tuple(Vec<Pattern>),
     ListCons(Vec<Pattern>),
+    EmptyList,
     Ignore,
 }
 

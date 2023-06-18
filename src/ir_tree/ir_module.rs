@@ -176,7 +176,7 @@ impl Module {
                             );
                         }
                         Pattern::Literal(_) => todo!(),
-                        Pattern::Tuple(_) | Pattern::ListCons(_) => todo!(),
+                        Pattern::Tuple(_) | Pattern::ListCons(_) | Pattern::EmptyList => todo!(),
                         Pattern::Ignore => {}
                     }
                     let body = self.add_expr(body)?;
@@ -329,6 +329,7 @@ impl Module {
                     )),
                 )
             }
+            Pattern::EmptyList => todo!(),
         };
 
         let ir_id = self.next_ir_id();

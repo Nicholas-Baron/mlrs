@@ -66,6 +66,7 @@ fn parse_pattern(input: &str) -> IResult<&str, Pattern> {
         combinator::map(char('_'), |_| Pattern::Ignore),
         combinator::map(parse_tuple, Pattern::Tuple),
         combinator::map(parse_list_cons, Pattern::ListCons),
+        combinator::map(tag("[]"), |_| Pattern::EmptyList),
     ))(input)
 }
 
