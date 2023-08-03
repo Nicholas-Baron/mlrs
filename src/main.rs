@@ -32,9 +32,10 @@ struct Options {
 
 fn add_decl_or_expr(ir_mod: &mut ir_tree::Module, decl_or_expr: parser::DeclOrExpr, debug: bool) {
     use parser::DeclOrExpr::*;
-    let lowering_result = match decl_or_expr {
-        Decl(decl) => ir_mod.add_decl(&decl),
-        Expr(expr) => ir_mod.add_expr(&expr),
+
+    let (lowering_result, should_eval) = match decl_or_expr {
+        Decl(decl) => (ir_mod.add_decl(&decl), false),
+        Expr(expr) => (ir_mod.add_expr(&expr), true),
     };
 
     match lowering_result {
@@ -43,7 +44,9 @@ fn add_decl_or_expr(ir_mod: &mut ir_tree::Module, decl_or_expr: parser::DeclOrEx
                 println!("{:?}", ir_mod);
             }
 
-            print_result(evaluate_id(ir_mod, expr_id), debug.then_some(ir_mod));
+            if should_eval {
+                print_result(evaluate_id(ir_mod, expr_id), debug.then_some(ir_mod));
+            }
         }
         Err(e) => eprintln!("{}", e),
     }
