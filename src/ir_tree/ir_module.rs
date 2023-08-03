@@ -322,7 +322,7 @@ impl Module {
                     )),
                 )
             }
-            Pattern::EmptyList => todo!(),
+            Pattern::EmptyList => (IRPattern::EmptyList, None),
         };
 
         let ir_id = self.next_ir_id();

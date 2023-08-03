@@ -20,6 +20,7 @@ impl IRId {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IRPattern {
     Ignore,
+    EmptyList,
     Literal(Literal),
     Identifier(IRId),
     Tuple(Vec<IRId>),
@@ -29,7 +30,7 @@ pub enum IRPattern {
 impl IRPattern {
     pub fn contains(&self, id: &IRId) -> bool {
         match self {
-            IRPattern::Ignore | IRPattern::Literal(_) => false,
+            IRPattern::Ignore | IRPattern::EmptyList | IRPattern::Literal(_) => false,
             IRPattern::Identifier(x) => x == id,
             IRPattern::Tuple(elements) | IRPattern::ListCons(elements) => elements.contains(id),
         }
@@ -175,7 +176,7 @@ impl IRItem {
             }
             Self::Identifier { .. } => todo!(),
             IRItem::Pattern(pattern) => match pattern {
-                IRPattern::Ignore => {}
+                IRPattern::Ignore | IRPattern::EmptyList => {}
                 IRPattern::Literal(_) => todo!(),
                 IRPattern::Identifier(x) => {
                     if x == src_id {
