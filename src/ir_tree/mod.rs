@@ -26,6 +26,16 @@ pub enum IRPattern {
     ListCons(Vec<IRId>),
 }
 
+impl IRPattern {
+    pub fn contains(&self, id: &IRId) -> bool {
+        match self {
+            IRPattern::Ignore | IRPattern::Literal(_) => false,
+            IRPattern::Identifier(x) => x == id,
+            IRPattern::Tuple(elements) | IRPattern::ListCons(elements) => elements.contains(id),
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum IRItem {
     Literal(Literal),
@@ -71,6 +81,30 @@ pub enum IRItem {
 }
 
 impl IRItem {
+    pub fn contains(&self, id: &IRId) -> bool {
+        match self {
+            IRItem::EmptyList | IRItem::Literal(_) | IRItem::Identifier { .. } => false,
+            IRItem::Pattern(pattern) => pattern.contains(id),
+            IRItem::Tuple { elements } => elements.contains(id),
+            IRItem::ListCons { item, rest_list } => item == id || rest_list == id,
+            IRItem::Lambda { parameter, body } => parameter == id || body == id,
+            IRItem::Binary { lhs, rhs, .. } => lhs == id || rhs == id,
+            IRItem::If {
+                condition,
+                true_value,
+                false_value,
+            } => [condition, true_value, false_value].contains(&id),
+            IRItem::Match { scrutinee, arms } => {
+                scrutinee == id || arms.iter().any(|(lhs, rhs)| lhs == id || rhs == id)
+            }
+            IRItem::Binding { pattern, value } => pattern == id || value == id,
+            IRItem::Let {
+                binding_list,
+                inner_expr,
+            } => binding_list.contains(id) || inner_expr == id,
+        }
+    }
+
     fn rewrite_id_to(&mut self, dest_id: &IRId, src_id: &IRId) {
         match self {
             Self::Lambda { body, .. } => {
@@ -255,7 +289,13 @@ mod tests {
             Some(&IRItem::Lambda {
                 ref parameter,
                 ref body,
-            }) => parameter == body,
+            }) => {
+                module
+                    .ir_items
+                    .get(parameter)
+                    .map(|pattern| pattern.contains(body))
+                    .unwrap_or(false)
+            }
             _ => false,
         });
     }
