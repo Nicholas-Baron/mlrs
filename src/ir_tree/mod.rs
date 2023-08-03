@@ -183,8 +183,7 @@ impl IRItem {
                         *x = dest_id.clone();
                     }
                 }
-                IRPattern::Tuple(_) => todo!(),
-                IRPattern::ListCons(elements) => {
+                IRPattern::Tuple(elements) | IRPattern::ListCons(elements) => {
                     for elem in elements {
                         if elem == src_id {
                             *elem = dest_id.clone();
