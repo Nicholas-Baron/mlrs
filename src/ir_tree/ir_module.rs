@@ -156,38 +156,31 @@ impl Module {
                 )
             }
 
-            Expr::Lambda { body, parameter } => (
-                self.next_ir_id(),
+            Expr::Lambda { body, parameter } => {
+                let lambda_id = self.next_ir_id();
+
                 // NOTE: The initalization order here matters.
                 // The parameter needs to be added *before* the body is processed.
                 // We also need to remove the scope after we are done.
-                {
-                    let param_id = self.next_ir_id();
-                    let name_scope = self.add_new_name_scope();
-                    match parameter {
-                        Pattern::Id(param) => {
-                            name_scope.insert(param.clone(), param_id.clone());
-                            self.ir_items.insert(
-                                param_id.clone(),
-                                IRItem::Identifier {
-                                    name: param.clone(),
-                                    declaring_item: Some(param_id.clone()),
-                                },
-                            );
-                        }
-                        Pattern::Literal(_) => todo!(),
-                        Pattern::Tuple(_) | Pattern::ListCons(_) | Pattern::EmptyList => todo!(),
-                        Pattern::Ignore => {}
-                    }
-                    let body = self.add_expr(body)?;
-                    self.hide_top_name_scope();
 
+                let (pattern_id, new_names) = self.add_pattern(parameter, &lambda_id);
+
+                let name_scope = self.add_new_name_scope();
+                if let Some(names) = new_names {
+                    name_scope.extend(names);
+                }
+
+                let body = self.add_expr(body)?;
+                self.hide_top_name_scope();
+
+                (
+                    lambda_id,
                     IRItem::Lambda {
-                        parameter: param_id,
+                        parameter: pattern_id,
                         body,
-                    }
-                },
-            ),
+                    },
+                )
+            }
             Expr::Binary { lhs, rhs, ref op } => (
                 self.next_ir_id(),
                 IRItem::Binary {

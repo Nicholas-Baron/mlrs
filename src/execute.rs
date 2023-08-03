@@ -306,7 +306,15 @@ fn apply(module: &Module, lhs: Expr, rhs: Expr) -> Expr {
             body,
             mut environment,
         } => {
-            environment.insert(parameter, rhs);
+            let pattern = match module.get_item(&parameter).unwrap() {
+                IRItem::Pattern(pattern) => pattern,
+                item => panic!("Expected pattern; found {item:?}"),
+            };
+
+            if let Some(sub_env) = match_pattern(module, &rhs, pattern) {
+                environment.extend(sub_env);
+            }
+
             eval(module, body, &environment)
         }
         Expr::Suspend((id, env)) => apply(module, eval(module, id, &env), rhs),
