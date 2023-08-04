@@ -4,7 +4,7 @@ use std::{fs, io};
 use clap::{ArgGroup, Parser};
 
 mod execute;
-use execute::{evaluate_id, EvaluationResult};
+use execute::evaluate_id;
 mod ir_tree;
 mod parser;
 mod syntax;
@@ -45,7 +45,7 @@ fn add_decl_or_expr(ir_mod: &mut ir_tree::Module, decl_or_expr: parser::DeclOrEx
             }
 
             if should_eval {
-                print_result(evaluate_id(ir_mod, expr_id), debug.then_some(ir_mod));
+                print_eval_of(ir_mod, expr_id, debug);
             }
         }
         Err(e) => eprintln!("{}", e),
@@ -110,19 +110,19 @@ fn interact_with(input: io::Stdin, mut ir_mod: ir_tree::Module, debug: bool) {
 
         if is_expr {
             match new_id {
-                Ok(new_id) => print_result(evaluate_id(&ir_mod, new_id), debug.then_some(&ir_mod)),
+                Ok(new_id) => print_eval_of(&ir_mod, new_id, debug),
                 Err(e) => eprintln!("{}", e),
             }
         }
     }
 }
 
-fn print_result(result: EvaluationResult, ir_mod: Option<&ir_tree::Module>) {
-    if let Some(ir_mod) = ir_mod {
-        println!("{:?}", ir_mod);
+fn print_eval_of(module: &ir_tree::Module, id: ir_tree::IRId, debug: bool) {
+    if debug {
+        println!("{:?}", module);
     }
 
-    println!("{result}");
+    println!("{}", evaluate_id(module, id));
 }
 
 fn main() {
@@ -141,6 +141,7 @@ fn main() {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::execute::EvaluationResult;
     use crate::syntax::Literal;
 
     #[test]
