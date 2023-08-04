@@ -285,19 +285,26 @@ mod tests {
             _ => panic!(),
         };
 
-        assert!(match module.ir_items.get(&declaring_id) {
-            Some(&IRItem::Lambda {
-                ref parameter,
-                ref body,
-            }) => {
-                module
-                    .ir_items
-                    .get(parameter)
-                    .map(|pattern| pattern.contains(body))
-                    .unwrap_or(false)
-            }
-            _ => false,
-        });
+        let binding = module.ir_items.get(&declaring_id);
+        assert_ne!(binding, None);
+
+        let lambda_id = match binding {
+            Some(IRItem::Binding { value, .. }) => value,
+            _ => panic!(),
+        };
+
+        let Some(&IRItem::Lambda {
+            ref parameter,
+            ref body,
+        }) = module.ir_items.get(lambda_id) else {
+            panic!()
+        };
+
+        assert!(module
+            .ir_items
+            .get(parameter)
+            .map(|pattern| pattern.contains(body))
+            .unwrap_or(false));
     }
 
     #[test]
@@ -399,7 +406,12 @@ mod tests {
             _ => panic!(),
         };
 
-        assert!(match module.ir_items.get(&declaring_id) {
+        let Some(
+            IRItem::Binding { value, .. }
+            ) = module.ir_items.get(&declaring_id)
+            else { panic!() };
+
+        assert!(match module.ir_items.get(&value) {
             Some(&IRItem::Lambda { .. }) => true,
             _ => false,
         });

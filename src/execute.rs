@@ -9,6 +9,7 @@ type Environment = HashMap<IRId, Expr>;
 #[derive(Debug, Clone)]
 enum Expr {
     Literal(Literal),
+    BindingSet(Environment),
     Suspend((IRId, Environment)),
     Closure {
         parameter: IRId,
@@ -28,7 +29,7 @@ impl Expr {
         match self {
             Expr::Literal(l) => EvaluationResult::Literal(l),
             Expr::Suspend((id, env)) => eval(module, id, &env).fully_evaluate(module, &env),
-            Expr::Closure { .. } => EvaluationResult::NonLiteral,
+            Expr::BindingSet(_) | Expr::Closure { .. } => EvaluationResult::NonLiteral,
             Expr::Tuple(items) => EvaluationResult::Tuple(
                 items
                     .into_iter()
@@ -115,7 +116,10 @@ fn eval(module: &Module, id: IRId, environment: &Environment) -> Expr {
             if let Some(Expr::Suspend((ir_id, environment))) = environment.get(decl_id) {
                 eval(module, ir_id.clone(), environment)
             } else {
-                eval(module, decl_id.clone(), environment)
+                match eval(module, decl_id.clone(), environment) {
+                    Expr::BindingSet(bindings) => bindings.get(&id).unwrap().clone(),
+                    e => e,
+                }
             }
         }
         ident @ IRItem::Identifier {
@@ -187,7 +191,17 @@ fn eval(module: &Module, id: IRId, environment: &Environment) -> Expr {
 
             eval(module, selected_arm, &env)
         }
-        IRItem::Binding { .. } => todo!(),
+        IRItem::Binding { pattern, value } => {
+            let pattern = match module.get_item(&pattern) {
+                Some(IRItem::Pattern(pattern)) => pattern,
+                _ => panic!(),
+            };
+
+            match match_pattern(module, &eval(module, value, environment), pattern) {
+                Some(new_env) => Expr::BindingSet(new_env),
+                None => panic!(),
+            }
+        }
         IRItem::Let {
             binding_list,
             inner_expr,

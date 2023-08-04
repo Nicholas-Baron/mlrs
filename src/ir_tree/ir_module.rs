@@ -89,29 +89,23 @@ impl Module {
 
         // We need to allow recursive bindings.
         // To do so, we can rewrite an id after it has been added.
-        let temp_ir_id = self.next_ir_id();
-        let (pattern_id, new_names) = self.add_pattern(pattern, &temp_ir_id);
-        let scope = self.current_name_scope();
+        let binding_id = self.next_ir_id();
+        let (pattern_id, new_names) = self.add_pattern(pattern, &binding_id);
 
-        if let Some(new_names) = new_names {
-            for (key, value) in new_names {
-                scope.insert(key, value);
-            }
-
-            let binding_id = self.next_ir_id();
-            self.ir_items.insert(
-                binding_id,
-                IRItem::Binding {
-                    pattern: pattern_id,
-                    value: temp_ir_id.clone(),
-                },
-            );
-        }
+        self.current_name_scope()
+            .extend(new_names.unwrap_or_default());
 
         let new_ir_id = self.add_expr(expr)?;
-        self.rewrite_id_to(&new_ir_id, &temp_ir_id);
 
-        Ok(new_ir_id)
+        self.ir_items.insert(
+            binding_id.clone(),
+            IRItem::Binding {
+                pattern: pattern_id,
+                value: new_ir_id,
+            },
+        );
+
+        Ok(binding_id)
     }
 
     pub fn add_expr(&mut self, expr: &syntax::Expr) -> Result<IRId, LoweringError> {
