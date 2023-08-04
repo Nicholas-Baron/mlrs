@@ -62,28 +62,6 @@ impl Module {
         self.ir_items.get(id)
     }
 
-    fn rewrite_id_to(&mut self, dest_id: &IRId, src_id: &IRId) {
-        // rewriting means that we need to
-
-        // 1. "rebind" any names bound to `src_id` instead to `dest_id`
-        for scope in &mut self.name_scopes {
-            for (_, id) in scope.iter_mut().filter(|(_, id)| id == &src_id) {
-                *id = dest_id.clone();
-            }
-        }
-
-        // 2. change all references of `src_id` to `dest_id` in ir_items
-        // 2a. reassign the item with the `src_id` to `dest_id`
-        if let Some(item) = self.ir_items.remove(src_id) {
-            self.ir_items.insert(dest_id.clone(), item);
-        }
-
-        // 2b. change all items from referencing `src_id` to `dest_id`
-        for item in self.ir_items.values_mut() {
-            item.rewrite_id_to(dest_id, src_id);
-        }
-    }
-
     pub fn add_decl(&mut self, decl: &syntax::Declaration) -> LoweringResult<IRId> {
         let syntax::Declaration { pattern, expr } = decl;
 

@@ -27,6 +27,7 @@ pub enum IRPattern {
     ListCons(Vec<IRId>),
 }
 
+#[cfg(test)]
 impl IRPattern {
     pub fn contains(&self, id: &IRId) -> bool {
         match self {
@@ -82,6 +83,7 @@ pub enum IRItem {
 }
 
 impl IRItem {
+    #[cfg(test)]
     pub fn contains(&self, id: &IRId) -> bool {
         match self {
             IRItem::EmptyList | IRItem::Literal(_) | IRItem::Identifier { .. } => false,
@@ -103,115 +105,6 @@ impl IRItem {
                 binding_list,
                 inner_expr,
             } => binding_list.contains(id) || inner_expr == id,
-        }
-    }
-
-    fn rewrite_id_to(&mut self, dest_id: &IRId, src_id: &IRId) {
-        match self {
-            Self::Lambda { body, .. } => {
-                if body == src_id {
-                    *body = dest_id.clone();
-                }
-            }
-            Self::Binary { lhs, rhs, .. } => {
-                if lhs == src_id {
-                    *lhs = dest_id.clone();
-                }
-                if rhs == src_id {
-                    *rhs = dest_id.clone();
-                }
-            }
-            Self::If {
-                condition,
-                true_value,
-                false_value,
-            } => {
-                if condition == src_id {
-                    *condition = dest_id.clone();
-                }
-                if true_value == src_id {
-                    *true_value = dest_id.clone();
-                }
-                if false_value == src_id {
-                    *false_value = dest_id.clone();
-                }
-            }
-            Self::Identifier {
-                declaring_item: Some(id),
-                ..
-            } => {
-                if id == src_id {
-                    *id = dest_id.clone();
-                }
-            }
-            Self::Literal(_) | Self::EmptyList => {}
-            Self::ListCons { item, rest_list } => {
-                if item == src_id {
-                    *item = dest_id.clone();
-                }
-                if rest_list == src_id {
-                    *rest_list = dest_id.clone();
-                }
-            }
-            Self::Tuple { elements } => {
-                elements.iter_mut().for_each(|elem| {
-                    if elem == src_id {
-                        *elem = dest_id.clone();
-                    }
-                });
-            }
-            Self::Match { scrutinee, arms } => {
-                if scrutinee == src_id {
-                    *scrutinee = dest_id.clone();
-                }
-                arms.iter_mut().for_each(|(pattern, expr)| {
-                    if pattern == src_id {
-                        *pattern = dest_id.clone();
-                    }
-
-                    if expr == src_id {
-                        *expr = dest_id.clone();
-                    }
-                });
-            }
-            Self::Identifier { .. } => todo!(),
-            IRItem::Pattern(pattern) => match pattern {
-                IRPattern::Ignore | IRPattern::EmptyList => {}
-                IRPattern::Literal(_) => todo!(),
-                IRPattern::Identifier(x) => {
-                    if x == src_id {
-                        *x = dest_id.clone();
-                    }
-                }
-                IRPattern::Tuple(elements) | IRPattern::ListCons(elements) => {
-                    for elem in elements {
-                        if elem == src_id {
-                            *elem = dest_id.clone();
-                        }
-                    }
-                }
-            },
-            Self::Binding { pattern, value } => {
-                if pattern == src_id {
-                    *pattern = dest_id.clone();
-                }
-                if value == src_id {
-                    *value = src_id.clone();
-                }
-            }
-            Self::Let {
-                binding_list,
-                inner_expr,
-            } => {
-                if inner_expr == src_id {
-                    *inner_expr = dest_id.clone();
-                }
-                for binding in binding_list {
-                    if binding == src_id {
-                        *binding = dest_id.clone();
-                    }
-                }
-            }
         }
     }
 }
