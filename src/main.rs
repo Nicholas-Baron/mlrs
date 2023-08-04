@@ -280,9 +280,18 @@ mod test {
             }
             Err(e) => panic!("{}", e),
         };
-        let decl_id = ir_mod.add_decl(&decl).unwrap();
+        ir_mod.add_decl(&decl).unwrap();
 
-        let result = evaluate_id(&ir_mod, decl_id);
+        let expr = match parser::parse_expression("x") {
+            Ok((_, expr)) => expr,
+            Err(e) => panic!("{}", e),
+        };
+
+        let expr_id = ir_mod.add_expr(&expr).unwrap();
+
+        println!("{:?}", ir_mod);
+
+        let result = evaluate_id(&ir_mod, expr_id);
         println!("{:?}", result);
         assert_eq!(result, EvaluationResult::Literal(Literal::Integer(10)));
     }
