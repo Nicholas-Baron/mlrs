@@ -3,7 +3,7 @@ use super::syntax::*;
 use nom::{
     branch,
     bytes::complete::tag,
-    character::complete::{self, char, multispace0, multispace1, space0},
+    character::complete::{self, char, multispace0, space0, space1},
     combinator, multi, sequence, IResult,
 };
 
@@ -120,11 +120,12 @@ fn parse_function_declaration(input: &str) -> IResult<&str, Declaration> {
     let (input, name) = sequence::preceded(multispace0, parse_identifier)(input)?;
 
     // There may be some parameters to parse
-    let (input, params) = sequence::preceded(
-        multispace1,
-        multi::separated_list1(multispace1, parse_pattern),
-    )(input)
-    .unwrap_or((input, vec![]));
+    // TODO: Allow parameters across multiple lines
+    //       Currently, expressions on preceding lines look like more parameters.
+    //       A keyword could help denote the separation
+    let (input, params) =
+        sequence::preceded(space1, multi::separated_list1(space1, parse_pattern))(input)
+            .unwrap_or((input, vec![]));
 
     let (input, body) = sequence::preceded(
         sequence::delimited(multispace0, char('='), multispace0),
@@ -240,6 +241,32 @@ func x = match x
                             Expr::Literal(Literal::Integer(1))
                         ]
                     }),
+                ]
+            ))
+        );
+
+        assert_eq!(
+            parse_whole_file(
+                r#"
+                x true
+                const x = 10
+                "#
+            ),
+            Ok((
+                "",
+                vec![
+                    DeclOrExpr::Expr(Expr::Binary {
+                        lhs: Box::new(Expr::Identifier("x".to_string())),
+                        rhs: Box::new(Expr::Literal(Literal::Boolean(true))),
+                        op: BinaryOperation::Application,
+                    }),
+                    DeclOrExpr::Decl(Declaration::simple_name(
+                        "const".to_string(),
+                        Expr::Lambda {
+                            parameter: Pattern::Id("x".to_string()),
+                            body: Box::new(Expr::Literal(Literal::Integer(10))),
+                        }
+                    ))
                 ]
             ))
         );
