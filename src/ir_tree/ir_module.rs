@@ -333,4 +333,88 @@ impl Module {
         self.next_ir_id.inc();
         id
     }
+
+    pub fn write_graphviz_to<T: std::io::Write>(&self, dest: &mut T) -> std::io::Result<()> {
+        writeln!(dest, "digraph {{")?;
+
+        for (id, item) in self.ir_items.iter() {
+            match item {
+                IRItem::Literal(lit) => writeln!(dest, "{} [label = \"{}\"];", id.0, lit),
+                IRItem::Identifier {
+                    name,
+                    declaring_item,
+                } => {
+                    if let Some(declarer) = declaring_item {
+                        writeln!(
+                            dest,
+                            "{} [label = \"{}\"];\n{} -> {} [style = \"dashed\"];",
+                            id.0, name, id.0, declarer.0
+                        )
+                    } else {
+                        writeln!(dest, "{} [label = \"{}\"];", id.0, name)
+                    }
+                }
+                IRItem::Pattern(pat) => writeln!(dest, "{} [label = \"{:?}\"];", id.0, pat),
+                IRItem::Tuple { elements } => {
+                    for elem in elements {
+                        writeln!(dest, "{} -> {};", id.0, elem.0)?;
+                    }
+                    writeln!(dest, "{} [label = \"tuple\"]", id.0)
+                }
+                IRItem::EmptyList => writeln!(dest, "{} [label = \"[]\"];", id.0),
+                IRItem::ListCons { item, rest_list } => {
+                    writeln!(dest, "{} [label = \":\"];", id.0)?;
+                    writeln!(dest, "{} -> {};", id.0, item.0)?;
+                    writeln!(dest, "{} -> {};", id.0, rest_list.0)
+                }
+                IRItem::Lambda { parameter, body } => {
+                    writeln!(dest, "{} [label = \"lambda\"];", id.0)?;
+                    writeln!(dest, "{} -> {};", id.0, parameter.0)?;
+                    writeln!(dest, "{} -> {};", id.0, body.0)
+                }
+                IRItem::Binary { lhs, rhs, op } => {
+                    writeln!(dest, "{} [label = \"{:?}\"];", id.0, op)?;
+                    writeln!(dest, "{} -> {};", id.0, lhs.0)?;
+                    writeln!(dest, "{} -> {};", id.0, rhs.0)
+                }
+                IRItem::If {
+                    condition,
+                    true_value,
+                    false_value,
+                } => {
+                    writeln!(dest, "{} [label = \"if\"];", id.0)?;
+                    writeln!(dest, "{} -> {};", id.0, condition.0)?;
+                    writeln!(dest, "{} -> {};", id.0, true_value.0)?;
+                    writeln!(dest, "{} -> {};", id.0, false_value.0)
+                }
+                IRItem::Match { scrutinee, arms } => {
+                    writeln!(dest, "{} [label = \"match\"];", id.0)?;
+                    for (i, (pattern, value)) in arms.iter().enumerate() {
+                        let arm = format!("{}_arm{}", id.0, i);
+                        writeln!(dest, "{} -> {};", id.0, arm)?;
+                        writeln!(dest, "{} -> {} [label = \"pattern\"];", arm, pattern.0)?;
+                        writeln!(dest, "{} -> {} [label = \"value\"];", arm, value.0)?;
+                    }
+                    writeln!(dest, "{} -> {} [label = \"scrutinee\"];", id.0, scrutinee.0)
+                }
+                IRItem::Binding { pattern, value } => {
+                    writeln!(dest, "{} [label = \"binding\"];", id.0)?;
+                    writeln!(dest, "{} -> {} [label = \"pattern\"];", id.0, pattern.0)?;
+                    writeln!(dest, "{} -> {} [label = \"value\"];", id.0, value.0)
+                }
+                IRItem::Let {
+                    binding_list,
+                    inner_expr,
+                } => {
+                    writeln!(dest, "{} [label = \"let\"];", id.0)?;
+                    for binding in binding_list {
+                        writeln!(dest, "{} -> {};", id.0, binding.0)?;
+                    }
+                    writeln!(dest, "{} -> {} [label = \"value\"];", id.0, inner_expr.0)
+                }
+            }?;
+        }
+
+        writeln!(dest, "}}")
+    }
 }

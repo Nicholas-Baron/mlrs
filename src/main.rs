@@ -78,7 +78,7 @@ fn add_decl_or_expr(
 
     match lowering_result {
         Ok(expr_id) => {
-            writeln!(debug, "{:?}", ir_mod).unwrap();
+            ir_mod.write_graphviz_to(debug).unwrap();
 
             if should_eval {
                 print_eval_of(ir_mod, expr_id, debug);
@@ -110,6 +110,7 @@ fn ir_from_file(filename: &Path, debug: &mut DebugPrinter) -> ir_tree::Module {
             eprintln!("{}", e);
         }
     }
+
     ir_mod
 }
 
