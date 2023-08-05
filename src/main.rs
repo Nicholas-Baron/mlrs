@@ -1,5 +1,8 @@
 use std::path::{Path, PathBuf};
-use std::{fs, io};
+use std::{
+    fs::{self, File},
+    io::{self, Write},
+};
 
 use clap::{ArgGroup, Parser};
 
@@ -28,9 +31,44 @@ struct Options {
     /// Interactive mode
     #[structopt(short, long)]
     interactive: bool,
+
+    /// Dump path for debug info
+    #[structopt(long)]
+    debug_file: Option<PathBuf>,
 }
 
-fn add_decl_or_expr(ir_mod: &mut ir_tree::Module, decl_or_expr: parser::DeclOrExpr, debug: bool) {
+enum DebugPrinter {
+    DoNotPrint,
+    PrintStdOut,
+    PrintToFile(File),
+}
+
+impl Write for DebugPrinter {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        match self {
+            DebugPrinter::DoNotPrint => Ok(0),
+            DebugPrinter::PrintStdOut => {
+                let mut stdout = std::io::stdout();
+                stdout.write(buf)
+            }
+            DebugPrinter::PrintToFile(f) => f.write(buf),
+        }
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        match self {
+            DebugPrinter::DoNotPrint => Ok(()),
+            DebugPrinter::PrintStdOut => std::io::stdout().flush(),
+            DebugPrinter::PrintToFile(f) => f.flush(),
+        }
+    }
+}
+
+fn add_decl_or_expr(
+    ir_mod: &mut ir_tree::Module,
+    decl_or_expr: parser::DeclOrExpr,
+    debug: &mut DebugPrinter,
+) {
     use parser::DeclOrExpr::*;
 
     let (lowering_result, should_eval) = match decl_or_expr {
@@ -40,9 +78,7 @@ fn add_decl_or_expr(ir_mod: &mut ir_tree::Module, decl_or_expr: parser::DeclOrEx
 
     match lowering_result {
         Ok(expr_id) => {
-            if debug {
-                println!("{:?}", ir_mod);
-            }
+            writeln!(debug, "{:?}", ir_mod).unwrap();
 
             if should_eval {
                 print_eval_of(ir_mod, expr_id, debug);
@@ -52,7 +88,7 @@ fn add_decl_or_expr(ir_mod: &mut ir_tree::Module, decl_or_expr: parser::DeclOrEx
     }
 }
 
-fn ir_from_file(filename: &Path, debug: bool) -> ir_tree::Module {
+fn ir_from_file(filename: &Path, debug: &mut DebugPrinter) -> ir_tree::Module {
     let file_data = match fs::read_to_string(filename) {
         Ok(data) => data,
         Err(e) => {
@@ -64,9 +100,7 @@ fn ir_from_file(filename: &Path, debug: bool) -> ir_tree::Module {
     let mut ir_mod = ir_tree::Module::new();
     match parser::parse_whole_file(&file_data) {
         Ok((remaining, items)) => {
-            if debug {
-                println!("{:?} (remaining: {:?})", items, remaining);
-            }
+            writeln!(debug, "{:?} (remaining: {:?})", items, remaining).unwrap();
 
             for decl_or_expr in items {
                 add_decl_or_expr(&mut ir_mod, decl_or_expr, debug);
@@ -79,7 +113,7 @@ fn ir_from_file(filename: &Path, debug: bool) -> ir_tree::Module {
     ir_mod
 }
 
-fn interact_with(input: io::Stdin, mut ir_mod: ir_tree::Module, debug: bool) {
+fn interact_with(input: io::Stdin, mut ir_mod: ir_tree::Module, debug: &mut DebugPrinter) {
     let mut line = Default::default();
     while let Ok(byte_count) = input.read_line(&mut line) {
         if byte_count == 0 {
@@ -88,9 +122,7 @@ fn interact_with(input: io::Stdin, mut ir_mod: ir_tree::Module, debug: bool) {
 
         let decl_or_expr = match parser::parse_decl_or_expr(&line) {
             Ok((remaining, item)) => {
-                if debug {
-                    println!("{:?} (remaining: {:?})", item, remaining);
-                }
+                writeln!(debug, "{:?} (remaining: {:?})", item, remaining).unwrap();
                 line.clear();
                 item
             }
@@ -117,10 +149,8 @@ fn interact_with(input: io::Stdin, mut ir_mod: ir_tree::Module, debug: bool) {
     }
 }
 
-fn print_eval_of(module: &ir_tree::Module, id: ir_tree::IRId, debug: bool) {
-    if debug {
-        println!("{:?}", module);
-    }
+fn print_eval_of(module: &ir_tree::Module, id: ir_tree::IRId, debug: &mut DebugPrinter) {
+    writeln!(debug, "{:?}", module).unwrap();
 
     println!("{}", evaluate_id(module, id));
 }
@@ -128,13 +158,28 @@ fn print_eval_of(module: &ir_tree::Module, id: ir_tree::IRId, debug: bool) {
 fn main() {
     let opts = Options::parse();
 
+    let mut debug_printer = match (opts.debug, opts.debug_file) {
+        (true, None) => DebugPrinter::PrintStdOut,
+        (true, Some(path)) => {
+            DebugPrinter::PrintToFile(File::create(path).expect("Could not open debug file"))
+        }
+        (false, None) => DebugPrinter::DoNotPrint,
+        (false, Some(path)) => {
+            eprintln!(
+                "Specified a path (namely {}), but `--debug` was false",
+                path.to_string_lossy()
+            );
+            return;
+        }
+    };
+
     let ir_mod = opts
         .input_file
-        .map(|filename| ir_from_file(filename.as_path(), opts.debug))
+        .map(|filename| ir_from_file(filename.as_path(), &mut debug_printer))
         .unwrap_or_default();
 
     if opts.interactive {
-        interact_with(io::stdin(), ir_mod, opts.debug);
+        interact_with(io::stdin(), ir_mod, &mut debug_printer);
     }
 }
 
