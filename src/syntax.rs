@@ -5,17 +5,25 @@ pub type Identifier = String;
 /// This denotes a binding of some expression to a name.
 /// ```
 /// x = 5
-/// f = \x -> \y -> x + y
+/// f 0 _ = 0
+/// | x y = x + y
 /// ```
 #[derive(Debug, PartialEq)]
-pub struct Declaration {
-    pub pattern: Pattern,
-    pub expr: Expr,
+pub enum Declaration {
+    PatternBinding {
+        pattern: Pattern,
+        expr: Expr,
+    },
+    Function {
+        name: Identifier,
+        clauses: Vec<(Vec<Pattern>, Expr)>,
+    },
 }
 
+#[cfg(test)]
 impl Declaration {
     pub fn simple_name(id: Identifier, expr: Expr) -> Self {
-        Self {
+        Self::PatternBinding {
             pattern: Pattern::Id(id),
             expr,
         }

@@ -63,27 +63,85 @@ impl Module {
     }
 
     pub fn add_decl(&mut self, decl: &syntax::Declaration) -> LoweringResult<IRId> {
-        let syntax::Declaration { pattern, expr } = decl;
+        use syntax::Declaration;
+        match decl {
+            Declaration::PatternBinding { pattern, expr } => {
+                // We need to allow recursive bindings.
+                // To do so, we can rewrite an id after it has been added.
+                let binding_id = self.next_ir_id();
+                let (pattern_id, new_names) = self.add_pattern(pattern, &binding_id);
 
-        // We need to allow recursive bindings.
-        // To do so, we can rewrite an id after it has been added.
-        let binding_id = self.next_ir_id();
-        let (pattern_id, new_names) = self.add_pattern(pattern, &binding_id);
+                self.current_name_scope()
+                    .extend(new_names.unwrap_or_default());
 
-        self.current_name_scope()
-            .extend(new_names.unwrap_or_default());
+                let new_ir_id = self.add_expr(expr)?;
 
-        let new_ir_id = self.add_expr(expr)?;
+                self.ir_items.insert(
+                    binding_id.clone(),
+                    IRItem::Binding {
+                        pattern: pattern_id,
+                        value: new_ir_id,
+                    },
+                );
 
-        self.ir_items.insert(
-            binding_id.clone(),
-            IRItem::Binding {
-                pattern: pattern_id,
-                value: new_ir_id,
-            },
-        );
+                Ok(binding_id)
+            }
+            Declaration::Function { name, clauses } => {
+                if clauses.len() == 1 {
+                    let (params, body) = clauses.first().unwrap();
 
-        Ok(binding_id)
+                    let binding_id = self.next_ir_id();
+
+                    self.current_name_scope()
+                        .insert(name.clone(), binding_id.clone());
+
+                    let scope_count = self.name_scopes.len();
+
+                    let mut lambda_ids = vec![];
+                    let mut parameter_ids = vec![];
+
+                    for param in params {
+                        let lambda_id = self.next_ir_id();
+                        let (parameter, names) = self.add_pattern(param, &lambda_id);
+                        self.add_new_name_scope().extend(names.unwrap_or_default());
+                        parameter_ids.push(parameter);
+                        lambda_ids.push(lambda_id);
+                    }
+
+                    let super_body = parameter_ids.iter().zip(lambda_ids).rfold(
+                        self.add_expr(body)?,
+                        |body, (parameter, lambda)| {
+                            let inner_lambda = IRItem::Lambda {
+                                parameter: parameter.clone(),
+                                body,
+                            };
+                            self.ir_items.insert(lambda.clone(), inner_lambda);
+                            self.hide_top_name_scope();
+                            lambda
+                        },
+                    );
+
+                    let (name_id, _) =
+                        self.add_pattern(&syntax::Pattern::Id(name.clone()), &binding_id);
+
+                    self.ir_items.insert(
+                        binding_id.clone(),
+                        IRItem::Binding {
+                            pattern: name_id,
+                            value: super_body,
+                        },
+                    );
+
+                    assert_eq!(scope_count, self.name_scopes.len());
+
+                    return Ok(binding_id);
+                }
+
+                let params: Vec<_> = clauses.iter().map(|(params, _)| params).collect();
+
+                todo!()
+            }
+        }
     }
 
     pub fn add_expr(&mut self, expr: &syntax::Expr) -> Result<IRId, LoweringError> {
@@ -178,34 +236,14 @@ impl Module {
                 inner_expr,
             } => {
                 let ir_id = self.next_ir_id();
-                let mut bound_names = Scope::new();
+                self.add_new_name_scope();
+                let mut binding_list = vec![];
 
-                let binding_list = if !bound_values.is_empty() {
-                    let mut bindings = vec![];
-                    for syntax::Declaration { pattern, expr } in bound_values {
-                        let (pattern_id, new_names) = self.add_pattern(pattern, &ir_id);
-                        let expr_id = self.add_expr(expr);
+                for decl in bound_values {
+                    // `add_decl` uses the current scope
+                    binding_list.push(self.add_decl(decl)?);
+                }
 
-                        if let Some(new_names) = new_names {
-                            bound_names.extend(new_names);
-
-                            let binding_id = self.next_ir_id();
-                            self.ir_items.insert(
-                                binding_id.clone(),
-                                IRItem::Binding {
-                                    pattern: pattern_id,
-                                    value: expr_id?,
-                                },
-                            );
-                            bindings.push(binding_id);
-                        }
-                    }
-                    bindings
-                } else {
-                    Vec::default()
-                };
-
-                *self.add_new_name_scope() = bound_names;
                 let inner_expr = self.add_expr(inner_expr)?;
                 self.hide_top_name_scope();
 

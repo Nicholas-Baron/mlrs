@@ -332,6 +332,9 @@ fn apply(module: &Module, lhs: Expr, rhs: Expr) -> Expr {
             eval(module, body, &environment)
         }
         Expr::Suspend((id, env)) => apply(module, eval(module, id, &env), rhs),
+        Expr::BindingSet(bindings) if bindings.len() == 1 => {
+            apply(module, bindings.into_iter().next().unwrap().1, rhs)
+        }
         _ => todo!("cannot apply {rhs:?} to a lhs of {lhs:?}"),
     }
 }

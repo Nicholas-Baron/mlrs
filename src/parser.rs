@@ -119,32 +119,25 @@ pub fn parse_declaration_list(input: &str) -> IResult<&str, Vec<Declaration>> {
 fn parse_function_declaration(input: &str) -> IResult<&str, Declaration> {
     let (input, name) = sequence::preceded(multispace0, parse_identifier)(input)?;
 
-    // There may be some parameters to parse
-    // TODO: Allow parameters across multiple lines
-    //       Currently, expressions on preceding lines look like more parameters.
-    //       A keyword could help denote the separation
-    let (input, params) =
-        sequence::preceded(space1, multi::separated_list1(space1, parse_pattern))(input)
-            .unwrap_or((input, vec![]));
+    fn parse_function_clause(input: &str) -> IResult<&str, (Vec<Pattern>, Expr)> {
+        // There may be some parameters to parse
+        // TODO: Allow parameters across multiple lines
+        //       Currently, expressions on preceding lines look like more parameters.
+        //       A keyword could help denote the separation
+        let (input, params) =
+            sequence::preceded(space1, multi::separated_list1(space1, parse_pattern))(input)?;
 
-    let (input, body) = sequence::preceded(
-        sequence::delimited(multispace0, char('='), multispace0),
-        parse_expression,
-    )(input)?;
+        let (input, body) = sequence::preceded(
+            sequence::delimited(multispace0, char('='), multispace0),
+            parse_expression,
+        )(input)?;
 
-    Ok((
-        input,
-        Declaration::simple_name(
-            name,
-            params
-                .into_iter()
-                .rev()
-                .fold(body, |body, parameter| Expr::Lambda {
-                    body: Box::new(body),
-                    parameter,
-                }),
-        ),
-    ))
+        Ok((input, (params, body)))
+    }
+
+    let (input, clauses) = multi::separated_list1(char('|'), parse_function_clause)(input)?;
+
+    Ok((input, Declaration::Function { name, clauses }))
 }
 
 pub fn parse_declaration(input: &str) -> IResult<&str, Declaration> {
@@ -157,7 +150,7 @@ pub fn parse_declaration(input: &str) -> IResult<&str, Declaration> {
 
         Ok((
             input,
-            Declaration {
+            Declaration::PatternBinding {
                 pattern,
                 expr: body,
             },
@@ -190,17 +183,17 @@ func x = x * 2
                             Expr::Literal(Literal::Integer(0))
                         ]
                     }),
-                    DeclOrExpr::Decl(Declaration::simple_name(
-                        "func".to_string(),
-                        Expr::Lambda {
-                            parameter: Pattern::Id("x".to_string()),
-                            body: Box::new(Expr::Binary {
+                    DeclOrExpr::Decl(Declaration::Function {
+                        name: "func".to_string(),
+                        clauses: vec![(
+                            vec![Pattern::Id("x".to_string())],
+                            Expr::Binary {
                                 lhs: Box::new(Expr::Identifier("x".to_string())),
                                 rhs: Box::new(Expr::Literal(Literal::Integer(2))),
                                 op: BinaryOperation::Mult
-                            })
-                        }
-                    ))
+                            }
+                        )]
+                    })
                 ]
             ))
         );
@@ -225,16 +218,16 @@ func x = match x
                             Expr::Literal(Literal::Integer(0))
                         ]
                     }),
-                    DeclOrExpr::Decl(Declaration::simple_name(
-                        "func".to_string(),
-                        Expr::Lambda {
-                            parameter: Pattern::Id("x".to_string()),
-                            body: Box::new(Expr::Match {
+                    DeclOrExpr::Decl(Declaration::Function {
+                        name: "func".to_string(),
+                        clauses: vec![(
+                            vec![Pattern::Id("x".to_string())],
+                            Expr::Match {
                                 scrutinee: Box::new(Expr::Identifier("x".to_string())),
                                 arms: vec![(Pattern::Ignore, Expr::Literal(Literal::Integer(10)))]
-                            })
-                        }
-                    )),
+                            }
+                        )]
+                    }),
                     DeclOrExpr::Expr(Expr::Tuple {
                         elements: vec![
                             Expr::Literal(Literal::Integer(9)),
@@ -260,13 +253,13 @@ func x = match x
                         rhs: Box::new(Expr::Literal(Literal::Boolean(true))),
                         op: BinaryOperation::Application,
                     }),
-                    DeclOrExpr::Decl(Declaration::simple_name(
-                        "const".to_string(),
-                        Expr::Lambda {
-                            parameter: Pattern::Id("x".to_string()),
-                            body: Box::new(Expr::Literal(Literal::Integer(10))),
-                        }
-                    ))
+                    DeclOrExpr::Decl(Declaration::Function {
+                        name: "const".to_string(),
+                        clauses: vec![(
+                            vec![Pattern::Id("x".to_string())],
+                            Expr::Literal(Literal::Integer(10)),
+                        )]
+                    })
                 ]
             ))
         );
@@ -293,7 +286,7 @@ func x = match x
             parse_declaration("(x,y) = (1,2)"),
             Ok((
                 "",
-                Declaration {
+                Declaration::PatternBinding {
                     pattern: Pattern::Tuple(vec![
                         Pattern::Id("x".to_string()),
                         Pattern::Id("y".to_string())
@@ -349,14 +342,6 @@ func x = match x
     }
 
     #[test]
-    fn parse_function_binding_test() {
-        assert_eq!(
-            parse_declaration("f x y = x + y"),
-            parse_declaration("f = \\x -> \\y -> x+y")
-        );
-    }
-
-    #[test]
     fn parse_extra_newlines_test() {
         assert_eq!(
             parse_declaration("f x y = x + y"),
@@ -371,7 +356,7 @@ fib x = if x == 0 then 0
         )
         .unwrap();
         assert_eq!(rest.trim(), "");
-        assert!(matches!(decl, Declaration { .. }));
+        assert!(matches!(decl, Declaration::Function { .. }));
     }
 
     #[test]
@@ -426,16 +411,13 @@ fib x = if x == 0 then 0
             parse_declaration("const x _ = x"),
             Ok((
                 "",
-                Declaration::simple_name(
-                    "const".to_string(),
-                    Expr::Lambda {
-                        parameter: Pattern::Id("x".to_string()),
-                        body: Box::new(Expr::Lambda {
-                            parameter: Pattern::Ignore,
-                            body: Box::new(Expr::Identifier("x".to_string()))
-                        })
-                    }
-                )
+                Declaration::Function {
+                    name: "const".to_string(),
+                    clauses: vec![(
+                        vec![Pattern::Id("x".to_string()), Pattern::Ignore],
+                        Expr::Identifier("x".to_string())
+                    )]
+                }
             ))
         );
     }
