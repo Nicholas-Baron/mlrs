@@ -135,7 +135,10 @@ fn parse_function_declaration(input: &str) -> IResult<&str, Declaration> {
         Ok((input, (params, body)))
     }
 
-    let (input, clauses) = multi::separated_list1(char('|'), parse_function_clause)(input)?;
+    let (input, clauses) = multi::separated_list1(
+        sequence::preceded(multispace0, char('|')),
+        parse_function_clause,
+    )(input)?;
 
     Ok((input, Declaration::Function { name, clauses }))
 }
@@ -417,6 +420,54 @@ fib x = if x == 0 then 0
                         vec![Pattern::Id("x".to_string()), Pattern::Ignore],
                         Expr::Identifier("x".to_string())
                     )]
+                }
+            ))
+        );
+    }
+
+    #[test]
+    fn parse_function_declaration_test() {
+        assert_eq!(
+            parse_declaration(
+                r#"map _ [] = [] 
+                     | f (x:xs) = f x : map f xs"#
+            ),
+            Ok((
+                "",
+                Declaration::Function {
+                    name: "map".to_string(),
+                    clauses: vec![
+                        (
+                            vec![Pattern::Ignore, Pattern::EmptyList],
+                            Expr::List { elements: vec![] }
+                        ),
+                        (
+                            vec![
+                                Pattern::Id("f".to_string()),
+                                Pattern::ListCons(vec![
+                                    Pattern::Id("x".to_string()),
+                                    Pattern::Id("xs".to_string())
+                                ])
+                            ],
+                            Expr::Binary {
+                                lhs: Box::new(Expr::Binary {
+                                    lhs: Box::new(Expr::Identifier("f".to_string())),
+                                    rhs: Box::new(Expr::Identifier("x".to_string())),
+                                    op: BinaryOperation::Application
+                                }),
+                                rhs: Box::new(Expr::Binary {
+                                    lhs: Box::new(Expr::Binary {
+                                        lhs: Box::new(Expr::Identifier("map".to_string())),
+                                        rhs: Box::new(Expr::Identifier("f".to_string())),
+                                        op: BinaryOperation::Application
+                                    }),
+                                    rhs: Box::new(Expr::Identifier("xs".to_string())),
+                                    op: BinaryOperation::Application
+                                }),
+                                op: BinaryOperation::Prepend
+                            }
+                        )
+                    ]
                 }
             ))
         );
