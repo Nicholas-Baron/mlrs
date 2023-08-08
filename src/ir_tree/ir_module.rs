@@ -498,7 +498,7 @@ impl Module {
                 IRItem::Match { scrutinee, arms } => {
                     writeln!(dest, "{} [label = \"match\"];", id.0)?;
                     for (i, (pattern, value)) in arms.iter().enumerate() {
-                        let arm = format!("{}_arm{}", id.0, i);
+                        let arm = format!("\"{}_arm{}\"", id.0, i);
                         writeln!(dest, "{} -> {};", id.0, arm)?;
                         writeln!(dest, "{} -> {} [label = \"pattern\"];", arm, pattern.0)?;
                         writeln!(dest, "{} -> {} [label = \"value\"];", arm, value.0)?;
