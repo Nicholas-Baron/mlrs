@@ -1,10 +1,19 @@
-use std::fmt::{self, Display, Formatter};
+use std::{
+    collections::HashSet,
+    fmt::{self, Display, Formatter},
+};
 
 use crate::syntax::Identifier;
 
 #[derive(Debug)]
 pub enum LoweringError {
-    MissingIdentifier { name: Identifier },
+    MissingIdentifier {
+        name: Identifier,
+    },
+    DifferentParamCounts {
+        name: Identifier,
+        counts: HashSet<usize>,
+    },
 }
 
 impl Display for LoweringError {
@@ -13,6 +22,10 @@ impl Display for LoweringError {
             LoweringError::MissingIdentifier { name } => f.write_fmt(format_args!(
                 "Could not find declaration of identifier `{}`",
                 name
+            )),
+            LoweringError::DifferentParamCounts { name, counts } => f.write_fmt(format_args!(
+                "Function {} has differing counts of parameters, namely {:?}",
+                name, counts
             )),
         }
     }

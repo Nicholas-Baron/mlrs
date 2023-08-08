@@ -87,18 +87,18 @@ impl Module {
                 Ok(binding_id)
             }
             Declaration::Function { name, clauses } => {
+                let binding_id = self.next_ir_id();
+
+                self.current_name_scope()
+                    .insert(name.clone(), binding_id.clone());
+
+                let scope_count = self.name_scopes.len();
+
+                let mut lambda_ids = vec![];
+                let mut parameter_ids = vec![];
+
                 if clauses.len() == 1 {
                     let (params, body) = clauses.first().unwrap();
-
-                    let binding_id = self.next_ir_id();
-
-                    self.current_name_scope()
-                        .insert(name.clone(), binding_id.clone());
-
-                    let scope_count = self.name_scopes.len();
-
-                    let mut lambda_ids = vec![];
-                    let mut parameter_ids = vec![];
 
                     for param in params {
                         let lambda_id = self.next_ir_id();
@@ -137,9 +137,79 @@ impl Module {
                     return Ok(binding_id);
                 }
 
-                let params: Vec<_> = clauses.iter().map(|(params, _)| params).collect();
+                let params_by_clause: Vec<_> = clauses.iter().map(|(params, _)| params).collect();
 
-                todo!()
+                let param_count: usize = {
+                    use std::collections::HashSet;
+                    let param_counts: HashSet<_> =
+                        params_by_clause.iter().map(|x| x.len()).collect();
+
+                    if param_counts.len() != 1 {
+                        return Err(LoweringError::DifferentParamCounts {
+                            name: name.clone(),
+                            counts: param_counts,
+                        });
+                    } else {
+                        param_counts.into_iter().next().unwrap()
+                    }
+                };
+
+                for _ in 0..param_count {
+                    parameter_ids.push(self.next_ir_id());
+                    lambda_ids.push(self.next_ir_id());
+                }
+
+                let scrutinee = IRItem::Tuple {
+                    elements: parameter_ids.clone(),
+                };
+                let scrutinee_id = self.next_ir_id();
+                self.ir_items.insert(scrutinee_id.clone(), scrutinee);
+
+                let match_id = self.next_ir_id();
+                let mut arms = vec![];
+                for (params, body) in clauses {
+                    let (pattern_id, names) =
+                        self.add_pattern(&syntax::Pattern::Tuple(params.clone()), &match_id);
+
+                    self.add_new_name_scope().extend(names.unwrap_or_default());
+
+                    let body_id = self.add_expr(body)?;
+                    arms.push((pattern_id, body_id));
+                }
+
+                let match_expr = IRItem::Match {
+                    scrutinee: scrutinee_id,
+                    arms,
+                };
+                self.ir_items.insert(match_id.clone(), match_expr);
+
+                let super_body = parameter_ids.iter().zip(lambda_ids).rfold(
+                    match_id,
+                    |body, (parameter, lambda)| {
+                        let inner_lambda = IRItem::Lambda {
+                            parameter: parameter.clone(),
+                            body,
+                        };
+                        self.ir_items.insert(lambda.clone(), inner_lambda);
+                        self.hide_top_name_scope();
+                        lambda
+                    },
+                );
+
+                let (name_id, _) =
+                    self.add_pattern(&syntax::Pattern::Id(name.clone()), &binding_id);
+
+                self.ir_items.insert(
+                    binding_id.clone(),
+                    IRItem::Binding {
+                        pattern: name_id,
+                        value: super_body,
+                    },
+                );
+
+                assert_eq!(scope_count, self.name_scopes.len());
+
+                Ok(binding_id)
             }
         }
     }
