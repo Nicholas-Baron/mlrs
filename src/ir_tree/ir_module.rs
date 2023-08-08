@@ -462,7 +462,17 @@ impl Module {
                         writeln!(dest, "{} [label = \"{}\"];", id.0, name)
                     }
                 }
-                IRItem::Pattern(pat) => writeln!(dest, "{} [label = \"{:?}\"];", id.0, pat),
+                IRItem::Pattern(pat) => {
+                    writeln!(dest, "{} [label = \"{:?}\"];", id.0, pat)?;
+                    match pat {
+                        IRPattern::Literal(_) | IRPattern::EmptyList | IRPattern::Ignore => Ok(()),
+                        IRPattern::Identifier(x) => writeln!(dest, "{} -> {};", id.0, x.0),
+                        IRPattern::Tuple(elements) | IRPattern::ListCons(elements) => elements
+                            .iter()
+                            .map(|elem| writeln!(dest, "{} -> {};", id.0, elem.0))
+                            .collect(),
+                    }
+                }
                 IRItem::Tuple { elements } => {
                     for elem in elements {
                         writeln!(dest, "{} -> {};", id.0, elem.0)?;
