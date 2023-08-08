@@ -320,9 +320,9 @@ fn apply(module: &Module, lhs: Expr, rhs: Expr) -> Expr {
             body,
             mut environment,
         } => {
-            let pattern = match module.get_item(&parameter).unwrap() {
-                IRItem::Pattern(pattern) => pattern,
-                item => panic!("Expected pattern; found {item:?}"),
+            let pattern = match module.get_item(&parameter) {
+                Some(IRItem::Pattern(pattern)) => pattern,
+                item => panic!("Expected pattern for {parameter:?}; found {item:?}"),
             };
 
             if let Some(sub_env) = match_pattern(module, &rhs, pattern) {
