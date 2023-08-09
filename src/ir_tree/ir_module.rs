@@ -190,6 +190,10 @@ impl Module {
                             parameter: parameter.clone(),
                             body,
                         };
+                        self.ir_items.insert(
+                            parameter.clone(),
+                            IRItem::Pattern(IRPattern::Identifier(parameter.clone())),
+                        );
                         self.ir_items.insert(lambda.clone(), inner_lambda);
                         self.hide_top_name_scope();
                         lambda

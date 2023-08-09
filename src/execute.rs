@@ -230,7 +230,9 @@ fn match_pattern(module: &Module, scrutinee: &Expr, pattern: &IRPattern) -> Opti
         (Expr::Suspend((expr, env)), _) => {
             match_pattern(module, &eval(module, expr.clone(), env), pattern)
         }
-        (_, IRPattern::Ignore) => Some(Default::default()),
+        (Expr::EmptyList, IRPattern::EmptyList) | (_, IRPattern::Ignore) => {
+            Some(Default::default())
+        }
         // Pattern match a tuple
         (Expr::Tuple(lhs), IRPattern::Tuple(rhs)) => {
             if lhs.len() != rhs.len() {
