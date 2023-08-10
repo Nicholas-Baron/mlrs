@@ -1,7 +1,7 @@
 use crate::ir_tree::{IRId, IRItem, IRPattern, Module};
 use crate::syntax::{BinaryOperation, Literal};
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::fmt::Display;
 
 type Environment = HashMap<IRId, Expr>;
@@ -20,8 +20,45 @@ enum Expr {
     EmptyList,
     ListCons {
         item: Box<Expr>,
-        rest: Box<Expr>,
+        rest: RestOfList,
     },
+}
+
+/// This type is used to delay computing lists by simply appending the item chains and then
+/// returning them "concatenated",
+#[derive(Debug, Clone)]
+struct RestOfList {
+    item_chains: VecDeque<Expr>,
+}
+
+impl RestOfList {
+    fn fully_evaluate(self, module: &Module, environment: &Environment) -> EvaluationResult {
+        self.normalize(module).fully_evaluate(module, environment)
+    }
+
+    fn normalize(mut self, module: &Module) -> Expr {
+        match self.item_chains.pop_front() {
+            Some(Expr::ListCons { item, rest }) => Expr::ListCons {
+                item,
+                rest: RestOfList {
+                    item_chains: {
+                        self.item_chains.push_front(rest.normalize(module));
+                        self.item_chains
+                    },
+                },
+            },
+            Some(Expr::EmptyList) => self.normalize(module),
+            Some(Expr::Suspend((id, env))) => {
+                self.item_chains.push_front(eval(module, id, &env));
+                self.normalize(module)
+            }
+            Some(item) => Expr::ListCons {
+                item: Box::new(item),
+                rest: self,
+            },
+            None => Expr::EmptyList,
+        }
+    }
 }
 
 impl Expr {
@@ -134,7 +171,11 @@ fn eval(module: &Module, id: IRId, environment: &Environment) -> Expr {
         IRItem::EmptyList => Expr::EmptyList,
         IRItem::ListCons { item, rest_list } => Expr::ListCons {
             item: Box::new(Expr::Suspend((item, environment.clone()))),
-            rest: Box::new(Expr::Suspend((rest_list, environment.clone()))),
+            rest: RestOfList {
+                item_chains: [Expr::Suspend((rest_list, environment.clone()))]
+                    .into_iter()
+                    .collect(),
+            },
         },
         IRItem::Tuple { elements } => Expr::Tuple(
             elements
@@ -169,12 +210,7 @@ fn eval(module: &Module, id: IRId, environment: &Environment) -> Expr {
                 let lhs = eval(module, lhs, environment);
                 apply(module, lhs, Expr::Suspend((rhs, environment.clone())))
             }
-            op => evaluate_prim(
-                module,
-                op,
-                eval(module, lhs, environment),
-                eval(module, rhs, environment),
-            ),
+            op => evaluate_prim(module, op, lhs, rhs, environment),
         },
         IRItem::Match { scrutinee, arms } => {
             let scrutinee = eval(module, scrutinee, environment);
@@ -227,12 +263,17 @@ fn eval(module: &Module, id: IRId, environment: &Environment) -> Expr {
 /// `Some(env)` when a match connects, with `env` containing the environment
 fn match_pattern(module: &Module, scrutinee: &Expr, pattern: &IRPattern) -> Option<Environment> {
     match (scrutinee, pattern) {
+        (lhs, IRPattern::Identifier(rhs)) => {
+            let mut env = Environment::default();
+            env.insert(rhs.clone(), lhs.clone());
+            Some(env)
+        }
+        (_, IRPattern::Ignore) => Some(Default::default()),
         (Expr::Suspend((expr, env)), _) => {
             match_pattern(module, &eval(module, expr.clone(), env), pattern)
         }
-        (Expr::EmptyList, IRPattern::EmptyList) | (_, IRPattern::Ignore) => {
-            Some(Default::default())
-        }
+        // Actually look at the lhs
+        (Expr::EmptyList, IRPattern::EmptyList) => Some(Default::default()),
         // Pattern match a tuple
         (Expr::Tuple(lhs), IRPattern::Tuple(rhs)) => {
             if lhs.len() != rhs.len() {
@@ -257,11 +298,6 @@ fn match_pattern(module: &Module, scrutinee: &Expr, pattern: &IRPattern) -> Opti
             }
         }
         (Expr::Literal(lhs), IRPattern::Literal(rhs)) => (lhs == rhs).then(Default::default),
-        (lhs, IRPattern::Identifier(rhs)) => {
-            let mut env = Environment::default();
-            env.insert(rhs.clone(), lhs.clone());
-            Some(env)
-        }
         (whole_list @ Expr::ListCons { item, rest }, IRPattern::ListCons(pattern_items)) => {
             if pattern_items.is_empty() {
                 todo!("match pattern {pattern_items:?} with {item:?}:{rest:?}");
@@ -286,7 +322,7 @@ fn match_pattern(module: &Module, scrutinee: &Expr, pattern: &IRPattern) -> Opti
 
             let rest_items = match_pattern(
                 module,
-                rest,
+                &rest.clone().normalize(module),
                 &IRPattern::ListCons(pattern_items[1..].to_vec()),
             );
 
@@ -341,59 +377,76 @@ fn apply(module: &Module, lhs: Expr, rhs: Expr) -> Expr {
     }
 }
 
-fn evaluate_prim(module: &Module, op: BinaryOperation, lhs: Expr, rhs: Expr) -> Expr {
-    match (op, lhs, rhs) {
-        (BinaryOperation::Application, _, _) => unreachable!(),
-        (op, Expr::Suspend((lhs, env)), rhs) => {
-            evaluate_prim(module, op, eval(module, lhs, &env), rhs)
-        }
-        (op, lhs, Expr::Suspend((rhs, env))) => {
-            evaluate_prim(module, op, lhs, eval(module, rhs, &env))
-        }
-        (BinaryOperation::Equality, Expr::Literal(lhs), Expr::Literal(rhs)) => {
-            Expr::Literal(Literal::Boolean(lhs == rhs))
-        }
-        (op, Expr::Literal(Literal::Integer(lhs)), Expr::Literal(Literal::Integer(rhs))) => {
-            match op {
-                BinaryOperation::Application => unreachable!(),
-                BinaryOperation::Equality => Expr::Literal(Literal::Boolean(lhs == rhs)),
-                BinaryOperation::Minus => Expr::Literal(Literal::Integer(lhs - rhs)),
-                BinaryOperation::Mult => Expr::Literal(Literal::Integer(lhs * rhs)),
-                BinaryOperation::Modulo => Expr::Literal(Literal::Integer(lhs % rhs)),
-                BinaryOperation::Plus => Expr::Literal(Literal::Integer(lhs + rhs)),
-                // TODO: Print panic message
-                BinaryOperation::Prepend | BinaryOperation::Concat => panic!(),
+fn evaluate_prim(
+    module: &Module,
+    op: BinaryOperation,
+    lhs: IRId,
+    rhs: IRId,
+    environment: &Environment,
+) -> Expr {
+    match op {
+        BinaryOperation::Application => unreachable!(),
+
+        BinaryOperation::Prepend => Expr::ListCons {
+            item: Box::new(Expr::Suspend((lhs, environment.clone()))),
+            rest: RestOfList {
+                item_chains: [Expr::Suspend((rhs, environment.clone()))]
+                    .into_iter()
+                    .collect(),
+            },
+        },
+
+        BinaryOperation::Equality
+        | BinaryOperation::Plus
+        | BinaryOperation::Mult
+        | BinaryOperation::Minus
+        | BinaryOperation::Modulo => {
+            match (
+                op,
+                eval(module, lhs, environment).fully_evaluate(module, environment),
+                eval(module, rhs, environment).fully_evaluate(module, environment),
+            ) {
+                (_, EvaluationResult::NonLiteral, _)
+                | (_, _, EvaluationResult::NonLiteral)
+                | (BinaryOperation::Application, _, _) => {
+                    panic!()
+                }
+                (BinaryOperation::Equality, lhs_value, rhs_value) => {
+                    Expr::Literal(Literal::Boolean(lhs_value == rhs_value))
+                }
+                (
+                    op,
+                    EvaluationResult::Literal(Literal::Integer(lhs_value)),
+                    EvaluationResult::Literal(Literal::Integer(rhs_value)),
+                ) => Expr::Literal(Literal::Integer(match op {
+                    BinaryOperation::Application
+                    | BinaryOperation::Equality
+                    | BinaryOperation::Prepend
+                    | BinaryOperation::Concat => unreachable!(),
+                    BinaryOperation::Plus => lhs_value + rhs_value,
+                    BinaryOperation::Mult => lhs_value * rhs_value,
+                    BinaryOperation::Minus => lhs_value - rhs_value,
+                    BinaryOperation::Modulo => lhs_value % rhs_value,
+                })),
+                e => todo!("Did not evaluate_prim{:?}", e),
             }
         }
-        (BinaryOperation::Concat, Expr::EmptyList, Expr::EmptyList) => Expr::EmptyList,
-        (BinaryOperation::Concat, Expr::EmptyList, list @ Expr::ListCons { .. }) => list,
-        (
-            BinaryOperation::Concat,
-            Expr::ListCons {
-                item: lhs_item,
-                rest: lhs_rest,
-            },
-            rhs @ Expr::ListCons { .. },
-        ) => Expr::ListCons {
-            item: lhs_item,
-            rest: Box::new(evaluate_prim(
-                module,
-                BinaryOperation::Concat,
-                *lhs_rest,
-                rhs,
-            )),
+
+        BinaryOperation::Concat => match eval(module, lhs, environment) {
+            Expr::Literal(_) | Expr::BindingSet(_) | Expr::Closure { .. } | Expr::Tuple(_) => {
+                panic!()
+            }
+
+            Expr::EmptyList => Expr::Suspend((rhs, environment.clone())),
+            Expr::Suspend(_) => todo!(),
+            Expr::ListCons { ref mut rest, item } => {
+                rest.item_chains
+                    .push_back(Expr::Suspend((rhs, environment.clone())));
+                Expr::ListCons {
+                    item,
+                    rest: rest.clone(),
+                }
+            }
         },
-        (BinaryOperation::Prepend, lhs, rhs) => Expr::ListCons {
-            item: Box::new(lhs),
-            rest: Box::new(rhs),
-        },
-        (BinaryOperation::Equality, Expr::ListCons { .. }, Expr::EmptyList)
-        | (BinaryOperation::Equality, Expr::EmptyList, Expr::ListCons { .. }) => {
-            Expr::Literal(Literal::Boolean(false))
-        }
-        (BinaryOperation::Equality, Expr::EmptyList, Expr::EmptyList) => {
-            Expr::Literal(Literal::Boolean(true))
-        }
-        prim_op => todo!("cannot evaluate_prim{prim_op:?}"),
     }
 }
