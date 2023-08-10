@@ -37,6 +37,7 @@ struct Options {
     debug_file: Option<PathBuf>,
 }
 
+#[derive(Debug)]
 enum DebugPrinter {
     DoNotPrint,
     PrintStdOut,
@@ -46,7 +47,7 @@ enum DebugPrinter {
 impl Write for DebugPrinter {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         match self {
-            DebugPrinter::DoNotPrint => Ok(0),
+            DebugPrinter::DoNotPrint => Ok(buf.len()),
             DebugPrinter::PrintStdOut => {
                 let mut stdout = std::io::stdout();
                 stdout.write(buf)
