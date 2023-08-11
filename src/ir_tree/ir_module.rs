@@ -175,6 +175,7 @@ impl Module {
 
                     let body_id = self.add_expr(body)?;
                     arms.push((pattern_id, body_id));
+                    self.hide_top_name_scope();
                 }
 
                 let match_expr = IRItem::Match {
@@ -195,7 +196,6 @@ impl Module {
                             IRItem::Pattern(IRPattern::Identifier(parameter.clone())),
                         );
                         self.ir_items.insert(lambda.clone(), inner_lambda);
-                        self.hide_top_name_scope();
                         lambda
                     },
                 );
