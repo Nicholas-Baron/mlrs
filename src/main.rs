@@ -376,4 +376,35 @@ mod test {
         println!("{:?}", result);
         assert_eq!(result, EvaluationResult::Literal(Literal::Integer(13)));
     }
+
+    #[test]
+    fn list_of_lists() {
+        let input = r#"
+          [1, [2], (3, [4])]
+        "#;
+
+        let expr = match parser::parse_expression(&input) {
+            Ok((remaining, expr)) => {
+                println!("{:?} (remaining: {:?})", expr, remaining);
+                expr
+            }
+            Err(e) => panic!("{}", e),
+        };
+
+        let (ir_mod, expr_id) = ir_tree::Module::from_expr(&expr).unwrap();
+
+        let result = evaluate_id(&ir_mod, expr_id);
+        println!("{:?}", result);
+        assert_eq!(
+            result,
+            EvaluationResult::List(vec![
+                EvaluationResult::Literal(Literal::Integer(1)),
+                EvaluationResult::List(vec![EvaluationResult::Literal(Literal::Integer(2))]),
+                EvaluationResult::Tuple(vec![
+                    EvaluationResult::Literal(Literal::Integer(3)),
+                    EvaluationResult::List(vec![EvaluationResult::Literal(Literal::Integer(4)),]),
+                ])
+            ])
+        );
+    }
 }
