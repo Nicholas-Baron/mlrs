@@ -400,6 +400,7 @@ fn evaluate_prim(
         | BinaryOperation::Plus
         | BinaryOperation::Mult
         | BinaryOperation::Minus
+        | BinaryOperation::Division
         | BinaryOperation::Modulo => {
             match (
                 op,
@@ -427,6 +428,7 @@ fn evaluate_prim(
                     BinaryOperation::Mult => lhs_value * rhs_value,
                     BinaryOperation::Minus => lhs_value - rhs_value,
                     BinaryOperation::Modulo => lhs_value % rhs_value,
+                    BinaryOperation::Division => lhs_value / rhs_value,
                 })),
                 e => todo!("Did not evaluate_prim{:?}", e),
             }

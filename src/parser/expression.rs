@@ -218,7 +218,7 @@ fn parse_multiplication(input: &str) -> IResult<&str, Expr> {
             rhs: Box::new(rhs),
             op: match op {
                 '*' => BinaryOperation::Mult,
-                '/' => todo!("Implement division"),
+                '/' => BinaryOperation::Division,
                 '%' => BinaryOperation::Modulo,
                 _ => unreachable!(),
             },
