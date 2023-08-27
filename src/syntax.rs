@@ -63,6 +63,7 @@ pub enum Expr {
         scrutinee: Box<Expr>,
         arms: Vec<(Pattern, Expr)>,
     },
+    Dictionary(Vec<(Expr, Expr)>),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]

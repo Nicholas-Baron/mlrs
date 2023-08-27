@@ -286,9 +286,30 @@ fn parse_tuple(input: &str) -> IResult<&str, Expr> {
     )(input)
 }
 
+fn parse_dictionary(input: &str) -> IResult<&str, Expr> {
+    fn parse_entry(input: &str) -> IResult<&str, (Expr, Expr)> {
+        sequence::separated_pair(
+            parse_expression,
+            sequence::preceded(space0, tag("->")),
+            parse_expression,
+        )(input)
+    }
+
+    fn parse_entries(input: &str) -> IResult<&str, Vec<(Expr, Expr)>> {
+        multi::separated_list0(char(','), parse_entry)(input)
+    }
+
+    sequence::delimited(
+        char('{'),
+        combinator::map(parse_entries, Expr::Dictionary),
+        char('}'),
+    )(input)
+}
+
 fn parse_primary_expr(input: &str) -> IResult<&str, Expr> {
     let (input, _) = space0(input)?;
     branch::alt((
+        parse_dictionary,
         parse_tuple,
         parse_array,
         sequence::delimited(char('('), parse_expression, char(')')),
@@ -413,6 +434,22 @@ mod tests {
                         body: Box::new(Expr::Identifier("x".to_string()))
                     })
                 }
+            ))
+        );
+    }
+
+    #[test]
+    fn parse_dictionary_test() {
+        assert_eq!(parse_dictionary("{}"), Ok(("", Expr::Dictionary(vec![]))));
+
+        assert_eq!(
+            parse_dictionary("{1 -> 1}"),
+            Ok((
+                "",
+                Expr::Dictionary(vec![(
+                    Expr::Literal(Literal::Integer(1)),
+                    Expr::Literal(Literal::Integer(1)),
+                )])
             ))
         );
     }
