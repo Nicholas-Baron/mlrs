@@ -94,13 +94,15 @@ pub enum BinaryOperation {
 pub enum Literal {
     Boolean(bool),
     Integer(i64),
+    String(String),
 }
 
 impl Display for Literal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        match *self {
-            Literal::Boolean(b) => f.write_str(if b { "true" } else { "false" }),
+        match self {
+            Literal::Boolean(b) => f.write_str(if *b { "true" } else { "false" }),
             Literal::Integer(x) => f.write_fmt(format_args!("{}", x)),
+            Literal::String(s) => f.write_str(s),
         }
     }
 }

@@ -3,7 +3,7 @@ use super::syntax::*;
 use nom::{
     branch,
     bytes::complete::tag,
-    character::complete::{self, char, multispace0, space0, space1},
+    character::complete::{self, char, multispace0, multispace1, space0, space1},
     combinator, multi, sequence, IResult,
 };
 
@@ -31,11 +31,47 @@ fn parse_boolean_literal(input: &str) -> IResult<&str, bool> {
     )(input)
 }
 
+// Taken from the nom examples @ https://github.com/rust-bakery/nom/blob/main/examples/string.rs
+fn parse_escaped_string(input: &str) -> IResult<&str, String> {
+    enum Fragment<'a> {
+        Literal(&'a str),
+        EscapedChar(char),
+        EscapedWS,
+    }
+
+    fn parse_literal(input: &str) -> IResult<&str, &str> {
+        let not_quote_slash = nom::bytes::complete::is_not("\"\\");
+
+        combinator::verify(not_quote_slash, |s: &str| !s.is_empty())(input)
+    }
+
+    let build_string = multi::fold_many0(
+        branch::alt((
+            combinator::map(parse_literal, Fragment::Literal),
+            combinator::map(sequence::preceded(char('\\'), multispace1), |_| {
+                Fragment::EscapedWS
+            }),
+        )),
+        String::new,
+        |mut acc, fragment: Fragment| {
+            match fragment {
+                Fragment::Literal(lit) => acc.push_str(lit),
+                Fragment::EscapedChar(_) => todo!(),
+                Fragment::EscapedWS => {}
+            }
+            acc
+        },
+    );
+
+    sequence::delimited(char('"'), build_string, char('"'))(input)
+}
+
 fn parse_literal(input: &str) -> IResult<&str, Literal> {
     use complete::digit1;
     branch::alt((
         combinator::map_res(digit1, |value: &str| value.parse().map(Literal::Integer)),
         combinator::map(parse_boolean_literal, Literal::Boolean),
+        combinator::map(parse_escaped_string, Literal::String),
     ))(input)
 }
 
