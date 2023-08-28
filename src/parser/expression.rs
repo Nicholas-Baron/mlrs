@@ -296,13 +296,19 @@ fn parse_dictionary(input: &str) -> IResult<&str, Expr> {
     }
 
     fn parse_entries(input: &str) -> IResult<&str, Vec<(Expr, Expr)>> {
-        multi::separated_list0(char(','), parse_entry)(input)
+        let (mut input, entries) = multi::separated_list0(char(','), parse_entry)(input)?;
+
+        if !entries.is_empty() {
+            input = combinator::opt(char(','))(input)?.0;
+        }
+
+        Ok((input, entries))
     }
 
     sequence::delimited(
         char('{'),
         combinator::map(parse_entries, Expr::Dictionary),
-        char('}'),
+        sequence::preceded(multispace0, char('}')),
     )(input)
 }
 
@@ -450,6 +456,23 @@ mod tests {
                     Expr::Literal(Literal::Integer(1)),
                     Expr::Literal(Literal::Integer(1)),
                 )])
+            ))
+        );
+
+        assert_eq!(
+            parse_dictionary("{1 -> 1,\n2 -> 2,\n}"),
+            Ok((
+                "",
+                Expr::Dictionary(vec![
+                    (
+                        Expr::Literal(Literal::Integer(1)),
+                        Expr::Literal(Literal::Integer(1)),
+                    ),
+                    (
+                        Expr::Literal(Literal::Integer(2)),
+                        Expr::Literal(Literal::Integer(2)),
+                    )
+                ])
             ))
         );
     }
