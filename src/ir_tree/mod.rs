@@ -80,6 +80,7 @@ pub enum IRItem {
         binding_list: Vec<IRId>,
         inner_expr: IRId,
     },
+    Dictionary(HashMap<IRId, IRId>),
 }
 
 impl IRItem {
@@ -105,6 +106,7 @@ impl IRItem {
                 binding_list,
                 inner_expr,
             } => binding_list.contains(id) || inner_expr == id,
+            IRItem::Dictionary(map) => map.iter().any(|(key, value)| key == id || value == id),
         }
     }
 }
@@ -189,7 +191,8 @@ mod tests {
         let Some(&IRItem::Lambda {
             ref parameter,
             ref body,
-        }) = module.ir_items.get(lambda_id) else {
+        }) = module.ir_items.get(lambda_id)
+        else {
             panic!()
         };
 
@@ -299,10 +302,9 @@ mod tests {
             _ => panic!(),
         };
 
-        let Some(
-            IRItem::Binding { value, .. }
-            ) = module.ir_items.get(&declaring_id)
-            else { panic!() };
+        let Some(IRItem::Binding { value, .. }) = module.ir_items.get(&declaring_id) else {
+            panic!()
+        };
 
         assert!(match module.ir_items.get(&value) {
             Some(&IRItem::Lambda { .. }) => true,

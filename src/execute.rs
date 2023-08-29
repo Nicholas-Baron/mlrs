@@ -244,9 +244,14 @@ fn eval(module: &Module, id: IRId, environment: &Environment) -> Expr {
         } => {
             let mut new_env = environment.clone();
             for binding_id in binding_list {
-                let IRItem::Binding { pattern, value } = module.get_item(&binding_id).unwrap() else {panic!("let's binding_list contained a non-binding")};
+                let IRItem::Binding { pattern, value } = module.get_item(&binding_id).unwrap()
+                else {
+                    panic!("let's binding_list contained a non-binding")
+                };
 
-                let IRItem::Pattern(pattern)= module.get_item(pattern).unwrap()else{panic!("binding does not have a pattern lhs")};
+                let IRItem::Pattern(pattern) = module.get_item(pattern).unwrap() else {
+                    panic!("binding does not have a pattern lhs")
+                };
 
                 new_env.extend(
                     match_pattern(module, &eval(module, value.clone(), environment), pattern)
@@ -256,6 +261,7 @@ fn eval(module: &Module, id: IRId, environment: &Environment) -> Expr {
 
             eval(module, inner_expr, &new_env)
         }
+        IRItem::Dictionary(_) => todo!(),
     }
 }
 

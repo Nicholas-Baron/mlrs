@@ -357,6 +357,17 @@ impl Module {
                     },
                 )
             }
+            Expr::Dictionary(entries) => {
+                let id = self.next_ir_id();
+
+                let mut map = HashMap::new();
+
+                for (key, value) in entries {
+                    map.insert(self.add_expr(key)?, self.add_expr(value)?);
+                }
+
+                (id, IRItem::Dictionary(map))
+            }
             #[allow(unreachable_patterns)]
             _ => todo!("Unimplemented lowering for {expr:?}"),
         };
@@ -533,6 +544,14 @@ impl Module {
                         writeln!(dest, "{} -> {};", id.0, binding.0)?;
                     }
                     writeln!(dest, "{} -> {} [label = \"value\"];", id.0, inner_expr.0)
+                }
+                IRItem::Dictionary(map) => {
+                    writeln!(dest, "{} [label = \"let\"];", id.0)?;
+                    for (key, value) in map {
+                        writeln!(dest, "{} -> {};", id.0, key.0)?;
+                        writeln!(dest, "{} -> {};", id.0, value.0)?;
+                    }
+                    Ok(())
                 }
             }?;
         }
