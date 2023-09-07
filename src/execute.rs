@@ -22,6 +22,7 @@ enum Expr {
         item: Box<Expr>,
         rest: RestOfList,
     },
+    Dictionary(Vec<(Expr, Expr)>),
 }
 
 /// This type is used to delay computing lists by simply appending the item chains and then
@@ -88,6 +89,16 @@ impl Expr {
                 tail.reverse();
                 EvaluationResult::List(tail)
             }
+            Expr::Dictionary(data) => EvaluationResult::Dictionary(
+                data.into_iter()
+                    .map(|(key, value)| {
+                        (
+                            key.fully_evaluate(module, environment),
+                            value.fully_evaluate(module, environment),
+                        )
+                    })
+                    .collect(),
+            ),
         }
     }
 }
@@ -98,6 +109,7 @@ pub enum EvaluationResult {
     Literal(Literal),
     Tuple(Vec<EvaluationResult>),
     List(Vec<EvaluationResult>),
+    Dictionary(Vec<(EvaluationResult, EvaluationResult)>),
 }
 
 impl Display for EvaluationResult {
@@ -130,6 +142,19 @@ impl Display for EvaluationResult {
                     fmtr.write_fmt(format_args!("{}", elem))?;
                 }
                 fmtr.write_str("]")
+            }
+            EvaluationResult::Dictionary(data) => {
+                fmtr.write_str("{")?;
+                let mut first = true;
+                for (key, value) in data {
+                    if first {
+                        first = false;
+                    } else {
+                        fmtr.write_str(", ")?;
+                    }
+                    fmtr.write_fmt(format_args!("{} : {}", key, value))?;
+                }
+                fmtr.write_str("}")
             }
         }
     }
@@ -261,7 +286,17 @@ fn eval(module: &Module, id: IRId, environment: &Environment) -> Expr {
 
             eval(module, inner_expr, &new_env)
         }
-        IRItem::Dictionary(_) => todo!(),
+        IRItem::Dictionary(contents) => Expr::Dictionary(
+            contents
+                .into_iter()
+                .map(|(key, value)| {
+                    (
+                        eval(module, key, environment),
+                        eval(module, value, environment),
+                    )
+                })
+                .collect(),
+        ),
     }
 }
 
@@ -441,7 +476,11 @@ fn evaluate_prim(
         }
 
         BinaryOperation::Concat => match eval(module, lhs, environment) {
-            Expr::Literal(_) | Expr::BindingSet(_) | Expr::Closure { .. } | Expr::Tuple(_) => {
+            Expr::Literal(_)
+            | Expr::BindingSet(_)
+            | Expr::Closure { .. }
+            | Expr::Tuple(_)
+            | Expr::Dictionary { .. } => {
                 panic!()
             }
 

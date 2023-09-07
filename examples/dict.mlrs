@@ -1,0 +1,6 @@
+data = {
+    "hello" -> "world",
+    2 + 3 -> 5,
+}
+
+data
