@@ -484,8 +484,7 @@ impl Module {
                         IRPattern::Identifier(x) => writeln!(dest, "{} -> {};", id.0, x.0),
                         IRPattern::Tuple(elements) | IRPattern::ListCons(elements) => elements
                             .iter()
-                            .map(|elem| writeln!(dest, "{} -> {};", id.0, elem.0))
-                            .collect(),
+                            .try_for_each(|elem| writeln!(dest, "{} -> {};", id.0, elem.0)),
                     }
                 }
                 IRItem::Tuple { elements } => {
