@@ -45,9 +45,12 @@ fn parse_escaped_string(input: &str) -> IResult<&str, String> {
         combinator::verify(not_quote_slash, |s: &str| !s.is_empty())(input)
     }
 
+    let escapable = branch::alt((char('n'), char('t'), char('0')));
+
     let build_string = multi::fold_many0(
         branch::alt((
             combinator::map(parse_literal, Fragment::Literal),
+            combinator::map(sequence::preceded(char('\\'), escapable), Fragment::EscapedChar),
             combinator::map(sequence::preceded(char('\\'), multispace1), |_| {
                 Fragment::EscapedWS
             }),
